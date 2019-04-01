@@ -32,7 +32,7 @@ def simple_disambiguation(images, senses, labels):
             else:
                 accuracy[0] += 1
 
-    accuracy = accuracy[1] / (accuracy[0] + accuracy[1]) * 100
+    accuracy = (accuracy[1] / (accuracy[0] + accuracy[1])) * 100
 
     print("Sense accuracy is: %s" % accuracy)
         
