@@ -46,7 +46,7 @@ def embed_data_senses(model):
     
     print("Loading Dataset...")
     senses_df = pd.read_csv("verse_visualness_labels.tsv", sep='\t')
-    senses_df = senses_df.dropna()
+    senses_df = senses_df.dropna().reset_index()
 
     print("Dataset embedding...")
     for i in range(len(senses_df)):
