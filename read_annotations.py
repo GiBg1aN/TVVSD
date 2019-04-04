@@ -36,5 +36,3 @@ if len(new_df1.image_id.unique()) + len(new_df2.image_id.unique()) == len(new_df
     print("Writing...")
 else:
     print("Not unique image IDs, cannot concat dataframes.")
-
-

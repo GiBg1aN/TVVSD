@@ -3,6 +3,18 @@ import pandas as pd
 
 
 def filter_image_name(img_name):
+    """
+    Remove image name prefixes.
+
+    Args:
+        img_name: image name in the form PREFIX_XXXX.jpeg
+
+    Returns:
+        The XXXX image identifier
+
+    Raises:
+        ValueError: when the image prefix is not known
+    """
     train_prefix = "COCO_train2014_"
     val_prefix = "COCO_val2014_"
     if img_name.startswith(train_prefix):
@@ -13,6 +25,15 @@ def filter_image_name(img_name):
 
 
 def simple_disambiguation(images, senses, labels):
+    """
+    Compute cosine similarity between images and senses representation vectors
+    Accuracy is computed and printed.
+
+    Args:
+        images: A dataframe of image representations
+        senses: A dataframe of senses representations
+        sense_labels: A dataframe that contains the verb and the correct sense for each image
+    """
     accuracy = [0, 0]
     for i in range(len(images)):
         i_t = np.array(images.iloc[i]['caption'])
@@ -22,7 +43,7 @@ def simple_disambiguation(images, senses, labels):
         for j in range(len(verbs)):
             verb = verbs.iloc[j]
             filtered_senses = senses.query("lemma == @verb")
-            dot_product = filtered_senses['definition'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy()
+            dot_product = filtered_senses['definition'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy() # Cosine similarity between image i and every other image j
             s_hat = np.argmax(dot_product)
             pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
             sense_id = labels.query("image == @image_id and lemma == @verb")['sense_chosen'].iloc[0]
@@ -35,7 +56,7 @@ def simple_disambiguation(images, senses, labels):
     accuracy = (accuracy[1] / (accuracy[0] + accuracy[1])) * 100
 
     print("Sense accuracy is: %s" % accuracy)
-        
+
 
 def main():
     embedded_captions = pd.read_pickle("embedded_captions.pkl")
@@ -49,5 +70,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
