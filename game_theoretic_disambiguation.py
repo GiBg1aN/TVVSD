@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 
 def filter_image_name(img_name):
@@ -168,12 +169,34 @@ def main():
     # Z = affinity_matrix(senses["definition"])
     Z = np.load("payoff.npy")
 
-    for i in range(len(images)):
+    accuracy = [0, 0]
+    for i in tqdm(range(40)):
+    # for i in range(len(images)):
         image_i = images.iloc[i]
+
+        verb_i = sense_labels.query("image == @image_i.name")["lemma"].iloc[0]
+        verb_i_sense_idxs = list(senses.query("lemma == @verb_i").index)
+        pos_i = images.index.get_loc(image_i.name)
+
+        x_t = np.vstack(np.trim_zeros(S[pos_i, :]))
         x_t1 = strategy_payoff(image_i.name, W, S, Z, images, senses, sense_labels)
-        print(x_t1)
-        print("Sum:", np.sum(x_t1))
-        break
+
+        while np.all(np.abs(x_t1 - x_t) > 0.00001):
+            x_t = x_t1
+            x_t1 = strategy_payoff(image_i.name, W, S, Z, images, senses, sense_labels)
+            S[i, verb_i_sense_idxs] = x_t1.flatten()
+
+        pred_sense_id = senses.iloc[np.argmax(S[i])]['sense_num']
+        sense_id = sense_labels.query("image == @image_i.name and lemma == @verb_i")['sense_chosen'].iloc[0]
+
+        if sense_id == pred_sense_id:
+            accuracy[1] += 1
+        else:
+            accuracy[0] += 1
+
+    accuracy = (accuracy[1] / (accuracy[0] + accuracy[1])) * 100
+
+    print("Sense accuracy is: %s" % accuracy)
 
 
 if __name__ == '__main__':
