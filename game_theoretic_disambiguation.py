@@ -104,12 +104,12 @@ def strategy_space(images, senses, sense_labels):
     return S
 
 
-def strategy_payoff(idx_i, W, S, Z, images, senses, sense_labels):
+def strategy_payoff(image_details, W, S, Z, images, senses, sense_labels):
     """
     Updates strategy space using Replicator Dynamics.
 
     Args:
-        idx_i: input image index name
+        image_details: dictionary structure containing: image, senses indexes, and image absolute location
         W: Affinity matrix of size nxn
         S: Strategy space of size nxc
         Z: Payoff matrix of size cxc
@@ -120,23 +120,22 @@ def strategy_payoff(idx_i, W, S, Z, images, senses, sense_labels):
     Returns:
         An nxc matrix containing row-wise probability distributions
     """
-    pos_i = images.index.get_loc(idx_i)
-    verb_i = sense_labels.query("image == @idx_i")["lemma"].iloc[0]
-    verb_i_sense_idxs = list(senses.query("lemma == @verb_i").index)
+    pos_i = image_details.get("pos")
+    verb_i_sense_idxs = image_details.get("sense_idxs")
 
-    x_i = np.vstack(np.trim_zeros(S[pos_i, :])) # m_i x 1 vector
+    x_i = np.vstack(S[pos_i, verb_i_sense_idxs]) # m_i x 1 vector
     Ax = np.zeros((len(verb_i_sense_idxs), 1))
 
     denominator = 0
     for j in range(len(images)):
         pos_j = j
         if pos_i != pos_j:
-            verb_j = sense_labels.query("image == @images.iloc[@j].name")["lemma"].iloc[0]
+            verb_j = sense_labels.at[images.iloc[j].name, 'lemma']
             verb_j_sense_idxs = list(senses.query("lemma == @verb_j").index)
 
             w_ij = W[pos_i, pos_j] # scalar
             Z_ij = Z[verb_i_sense_idxs][:, verb_j_sense_idxs] # m_i x m_j matrix
-            x_j = np.vstack(np.trim_zeros(S[pos_j, :])) # m_j x 1 vector
+            x_j = np.vstack(S[pos_j, verb_j_sense_idxs]) # m_j x 1 vector
 
             Ax += w_ij * Z_ij @ x_j # Computation of fraction numerator (sum wZx) i.e. m_j x 1 vector
             denominator += x_i.T @(w_ij * Z_ij @ x_j) # scalar
@@ -156,6 +155,7 @@ def main():
     
     images, sense_labels = remove_duplicates(images, sense_labels)
 
+    sense_labels.set_index('image', inplace=True) # For performance speed-up, image_id is set as index
 
     # AFFINITY MATRIX
     # W = affinity_matrix(images["caption"])
@@ -170,24 +170,26 @@ def main():
     Z = np.load("payoff.npy")
 
     accuracy = [0, 0]
-    for i in tqdm(range(40)):
-    # for i in range(len(images)):
+    for i in range(len(images)):
         image_i = images.iloc[i]
 
-        verb_i = sense_labels.query("image == @image_i.name")["lemma"].iloc[0]
+        verb_i = sense_labels.at[image_i.name, 'lemma']
         verb_i_sense_idxs = list(senses.query("lemma == @verb_i").index)
         pos_i = images.index.get_loc(image_i.name)
 
-        x_t = np.vstack(np.trim_zeros(S[pos_i, :]))
-        x_t1 = strategy_payoff(image_i.name, W, S, Z, images, senses, sense_labels)
+        # In order to reduce the number of calls to 'query' method, gathered data is passed to function as dictionary
+        image_details = {"image": image_i, "sense_idxs": verb_i_sense_idxs, "pos": pos_i}
+
+        x_t = np.vstack(S[pos_i, verb_i_sense_idxs])
+        x_t1 = strategy_payoff(image_details, W, S, Z, images, senses, sense_labels)
 
         while np.all(np.abs(x_t1 - x_t) > 0.00001):
             x_t = x_t1
-            x_t1 = strategy_payoff(image_i.name, W, S, Z, images, senses, sense_labels)
+            x_t1 = strategy_payoff(image_details, W, S, Z, images, senses, sense_labels)
             S[i, verb_i_sense_idxs] = x_t1.flatten()
 
         pred_sense_id = senses.iloc[np.argmax(S[i])]['sense_num']
-        sense_id = sense_labels.query("image == @image_i.name and lemma == @verb_i")['sense_chosen'].iloc[0]
+        sense_id = sense_labels.at[image_i.name, 'sense_chosen']
 
         if sense_id == pred_sense_id:
             accuracy[1] += 1
