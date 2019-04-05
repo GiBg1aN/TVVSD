@@ -8,11 +8,13 @@ from stop_words import get_stop_words
 
 def embed_data_descriptions(model, descriptions_df):
     """
-    Embed image descriptions into 300-dim vectors using word2vec embedding.
+    Embed image descriptions into 300-dim vectors using word2vec
+    embedding.
 
     Args:
         model: pre-trained word2vec gensim model
-        descriptions_df: dataframe of image captions with columns: caption, image_id
+        descriptions_df: dataframe of image captions with columns:
+            caption, image_id
 
     Returns:
         A dataframe of numpy 300-dim vectors with image id as index
@@ -37,11 +39,12 @@ def embed_data_descriptions(model, descriptions_df):
         descriptions_df.iat[i, 1] = word_average / np.linalg.norm(word_average)
 
     # Captions of the same image are averaged
-    rows_per_image = pd.DataFrame(descriptions_df.groupby('image_id')['caption'].count())
-    vector_accumulator_df = pd.DataFrame(descriptions_df.groupby('image_id')['caption'].apply(np.sum))
-    averaged_descriptions_df = vector_accumulator_df.apply(lambda x: x / rows_per_image.loc[x.name], axis=1)
+    grouped_captions = descriptions_df.groupby('image_id')['caption']
+    rows_per_image = pd.DataFrame(grouped_captions.count())
+    accumulator_df = pd.DataFrame(grouped_captions.apply(np.sum))
+    average_descriptions_df = accumulator_df.apply(lambda x: x / rows_per_image.loc[x.name], axis=1)
 
-    return averaged_descriptions_df
+    return average_descriptions_df
 
 
 def embed_data_senses(model, senses_df):
@@ -50,12 +53,12 @@ def embed_data_senses(model, senses_df):
 
     Args:
         model: pre-trained word2vec gensim model
-        senses_df: dataframe of senses definitions with columns: lemma, sense_num, definition,
-          ontonotes_sense_examples
+        senses_df: dataframe of senses definitions with columns:
+            lemma, sense_num, definition, ontonotes_sense_examples
 
     Returns:
-        A dataframe with columns: lemma, sense_num, definition; where the definition is a numpy
-          300-dim vector
+        A dataframe with columns: lemma, sense_num, definition; where
+        the definition is a numpy 300-dim vector
     """
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
@@ -79,29 +82,29 @@ def embed_data_senses(model, senses_df):
         word_average = acc / len(filtered_tokens)
 
         senses_df.iat[i, 2] = word_average / np.linalg.norm(word_average)
-    embedded_senses_df = senses_df.drop(["ontonotes_sense_examples", "visualness_label"], axis=1)
+    embedded_senses_df = senses_df.drop(['ontonotes_sense_examples', 'visualness_label'], axis=1)
 
     return embedded_senses_df
 
 
 def main():
-    print("Loading word2vec Network...")
-    model = api.load("word2vec-google-news-300")
+    print('Loading word2vec Network...')
+    model = api.load('word2vec-google-news-300')
     model.init_sims(replace=True)
 
-    print("DESCRIPTIONS")
-    embedded_captions = embed_data_descriptions(model, pd.read_csv("filtered_annotations.csv"))
-    print("Embedding completed")
-    print("Writing Data...")
-    embedded_captions.to_pickle("embedded_captions.pkl")
-    print("Writing completed")
+    print('DESCRIPTIONS')
+    embedded_captions = embed_data_descriptions(model, pd.read_csv('filtered_annotations.csv'))
+    print('Embedding completed')
+    print('Writing Data...')
+    embedded_captions.to_pickle('embedded_captions.pkl')
+    print('Writing completed')
 
-    print("SENSES")
-    embedded_senses = embed_data_senses(model, pd.read_csv("verse_visualness_labels.tsv", sep='\t'))
-    print("Embedding completed")
-    print("Writing Data...")
-    embedded_senses.to_pickle("embedded_senses.pkl")
-    print("Writing completed")
+    print('SENSES')
+    embedded_senses = embed_data_senses(model, pd.read_csv('verse_visualness_labels.tsv', sep='\t'))
+    print('Embedding completed')
+    print('Writing Data...')
+    embedded_senses.to_pickle('embedded_senses.pkl')
+    print('Writing completed')
 
 
 if __name__ == '__main__':

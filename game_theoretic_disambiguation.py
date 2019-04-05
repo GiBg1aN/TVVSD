@@ -13,11 +13,11 @@ def filter_image_name(img_name):
     Returns:
         The XXXX image identifier
 
-    Raises: 
+    Raises:
         ValueError: when the image prefix is not known
     """
-    train_prefix = "COCO_train2014_"
-    val_prefix = "COCO_val2014_"
+    train_prefix = 'COCO_train2014_'
+    val_prefix = 'COCO_val2014_'
     if img_name.startswith(train_prefix):
         return int(img_name[len(train_prefix):-4])
     if img_name.startswith(val_prefix):
@@ -32,12 +32,13 @@ def remove_duplicates(images, sense_labels):
     Args:
         images: A dataframe of image representations
         senses: A dataframe of senses representations
-        sense_labels: A dataframe that contains the verb and the correct sense for each image
+        sense_labels: A dataframe that contains the verb and the correct
+            sense for each image
 
     Returns:
         A tuple filtered tuple (images, senses)
     """
-    duplicates = pd.DataFrame(sense_labels.groupby("image")["lemma"].count()).query("lemma > 1")
+    duplicates = pd.DataFrame(sense_labels.groupby('image')['lemma'].count()).query('lemma > 1')
     dups = []
     for i in range(len(duplicates)):
         dups.append(duplicates.iloc[i].name)
@@ -45,14 +46,16 @@ def remove_duplicates(images, sense_labels):
 
     for i in range(len(dups)):
         dup = dups[i]
-        sense_labels = sense_labels.drop(list(sense_labels.query("image == @dup").index))
+        sense_labels = sense_labels.drop(list(sense_labels.query('image == @dup').index))
 
     return (images, sense_labels)
 
 
 def affinity_matrix(elements):
     """
-    Compute parwise similarities of a given array; such matrix is the graph weight matrix W.
+    Compute parwise similarities of a given array; such matrix is the
+    graph weight matrix W.
+
     Affinity is computed through cosine similarity.
 
     Args:
@@ -62,13 +65,13 @@ def affinity_matrix(elements):
         An nxn symmetric matrix
     """
     n = len(elements)
-    W = np.zeros((n, n)) # Affinity matrix
+    W = np.zeros((n, n))  # Affinity matrix
 
     for i in range(n):
         w_i = elements.iloc[i]
-        for j in range(i + 1, n): # Since the matrix is symmetric computations can be sped up.
+        for j in range(i + 1, n):  # Since the matrix is symmetric computations can be sped up.
             w_j = elements.iloc[j]
-            w_ij = np.dot(w_i, w_j) # Cosine similarity (since vectors are already normalised).
+            w_ij = np.dot(w_i, w_j)  # Cosine similarity (since vectors are already normalised).
             W[i, j] = w_ij
             W[j, i] = w_ij
     return W
@@ -76,30 +79,32 @@ def affinity_matrix(elements):
 
 def strategy_space(images, senses, sense_labels):
     """
-    Generate the strategy space of the game, where rows are mixed_strategies (image representations)
-    and columns are pure strategies (verb senses). Each cell is uniformly initialiased, the cells
-    for which verb and sense intersection is null are set to zero.
+    Generate the strategy space of the game, where rows are
+    mixed_strategies (image representations) and columns are pure
+    strategies (verb senses). Each cell is uniformly initialiased, the
+    cells for which verb and sense intersection is null are set to zero.
 
     Args:
         images: A dataframe of image representations of size n
         senses: A dataframe of senses representations of size c
-        sense_labels: A dataframe that contains the verb and the correct sense for each image
+        sense_labels: A dataframe that contains the verb and the correct
+            sense for each image
 
     Returns:
         An nxc matrix containing row-wise probability distributions
     """
     n = len(images)
     c = len(senses)
-    S = np.zeros((n, c)) # Strategy space
+    S = np.zeros((n, c))  # Strategy space
 
-    for i in range(len(images)): # rows: index of image images_captions table
+    for i in range(len(images)):  # Rows: index of image images_captions table
         image_id = images.iloc[i].name
-        verb = sense_labels.query("image == @image_id")["lemma"].iloc[0]
-        filtered_senses = senses.query("lemma == @verb")
-        m = len(filtered_senses) # number of senses for that verb
+        verb = sense_labels.query('image == @image_id')['lemma'].iloc[0]
+        filtered_senses = senses.query('lemma == @verb')
+        m = len(filtered_senses)  # Number of senses for that verb
 
         for j in range(len(filtered_senses)):
-            col = filtered_senses.iloc[j].name # columns: index of sense in pandas dataframe
+            col = filtered_senses.iloc[j].name  # Columns: index of sense in pandas dataframe
             S[i, col] = 1 / m
     return S
 
@@ -109,76 +114,80 @@ def strategy_payoff(image_details, W, S, Z, images, senses, sense_labels):
     Updates strategy space using Replicator Dynamics.
 
     Args:
-        image_details: dictionary structure containing: image, senses indexes, and image absolute location
+        image_details: dictionary structure containing: image, senses
+            indexes, and image absolute location
         W: Affinity matrix of size nxn
         S: Strategy space of size nxc
         Z: Payoff matrix of size cxc
         images: A dataframe of image representations of size n
         senses: A dataframe of senses representations of size c
-        sense_labels: A dataframe that contains the verb and the correct sense for each image
+        sense_labels: A dataframe that contains the verb and the correct
+            sense for each image
 
     Returns:
         An nxc matrix containing row-wise probability distributions
     """
-    pos_i = image_details.get("pos")
-    verb_i_sense_idxs = image_details.get("sense_idxs")
+    pos_i = image_details.get('pos')
+    verb_i_sense_idxs = image_details.get('sense_idxs')
 
-    x_i = np.vstack(S[pos_i, verb_i_sense_idxs]) # m_i x 1 vector
-    Ax = np.zeros((len(verb_i_sense_idxs), 1))
+    x_i = np.vstack(S[pos_i, verb_i_sense_idxs])  # m_i x 1 vector
+    Ax_sum = np.zeros((len(verb_i_sense_idxs), 1))
 
     denominator = 0
     for j in range(len(images)):
         pos_j = j
         if pos_i != pos_j:
             verb_j = sense_labels.at[images.iloc[j].name, 'lemma']
-            verb_j_sense_idxs = list(senses.query("lemma == @verb_j").index)
+            verb_j_sense_idxs = list(senses.query('lemma == @verb_j').index)
 
-            w_ij = W[pos_i, pos_j] # scalar
-            Z_ij = Z[verb_i_sense_idxs][:, verb_j_sense_idxs] # m_i x m_j matrix
-            x_j = np.vstack(S[pos_j, verb_j_sense_idxs]) # m_j x 1 vector
+            w_ij = W[pos_i, pos_j]  # Scalar
+            Z_ij = Z[verb_i_sense_idxs][:, verb_j_sense_idxs]  # m_i x m_j matrix
+            x_j = np.vstack(S[pos_j, verb_j_sense_idxs])  # m_j x 1 vector
 
-            Ax += w_ij * Z_ij @ x_j # Computation of fraction numerator (sum wZx) i.e. m_j x 1 vector
-            denominator += x_i.T @(w_ij * Z_ij @ x_j) # scalar
+            Ax = w_ij*Z_ij @ x_j
+            Ax_sum += Ax  # Fraction numerator (sum wZx) i.e. m_j x 1 vector
+            denominator += x_i.T @ Ax  # Scalar
 
     for h in range(len(x_i)):
-        x_i[h] = (x_i[h] * Ax[h] / denominator)[0, 0]
+        x_i[h] = (x_i[h] * Ax_sum[h] / denominator)[0, 0]
     return x_i
 
 
 def main():
-    sense_labels = pd.read_csv("full_sense_annotations.csv")
+    sense_labels = pd.read_csv('full_sense_annotations.csv')
     sense_labels = sense_labels[sense_labels['COCO/TUHOI'] == 'COCO']
     sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
 
-    images = pd.read_pickle("embedded_captions.pkl") # Images representations
-    senses = pd.read_pickle("embedded_senses.pkl") # Senses representations
-    
+    images = pd.read_pickle('embedded_captions.pkl')  # Images representations
+    senses = pd.read_pickle('embedded_senses.pkl')  # Senses representations
+
     images, sense_labels = remove_duplicates(images, sense_labels)
 
-    sense_labels.set_index('image', inplace=True) # For performance speed-up, image_id is set as index
+    # For performance speed up, the index is rebuilt once in order to use index-based access
+    # instead of query access that is computational expensive. In this case image is set as index
+    sense_labels.set_index('image', inplace=True)
 
-    # AFFINITY MATRIX
-    # W = affinity_matrix(images["caption"])
-    W = np.load("affinity.npy")
 
-    # STRATEGY SPACE
-    # S = strategy_space(images, senses, sense_labels)
-    S = np.load("strategy_space.npy")
+    # W = affinity_matrix(images['caption'])  # Affinity matrix
+    W = np.load('affinity.npy')  # Affinity matrix
 
-    # PAYOFF MATRIX
-    # Z = affinity_matrix(senses["definition"])
-    Z = np.load("payoff.npy")
+    # S = strategy_space(images, senses, sense_labels)  # Strategy space
+    S = np.load('strategy_space.npy')  # Strategy space
+
+    # Z = affinity_matrix(senses['definition'])  # Payoff matrix
+    Z = np.load('payoff.npy')  # Payoff matrix
 
     accuracy = [0, 0]
-    for i in range(len(images)):
+    for i in tqdm(range(len(images))):
         image_i = images.iloc[i]
 
         verb_i = sense_labels.at[image_i.name, 'lemma']
-        verb_i_sense_idxs = list(senses.query("lemma == @verb_i").index)
+        verb_i_sense_idxs = list(senses.query('lemma == @verb_i').index)
         pos_i = images.index.get_loc(image_i.name)
 
-        # In order to reduce the number of calls to 'query' method, gathered data is passed to function as dictionary
-        image_details = {"image": image_i, "sense_idxs": verb_i_sense_idxs, "pos": pos_i}
+        # In order to reduce the number of calls to 'query' method, gathered data is passed to
+        # function as dictionary.
+        image_details = {'image': image_i, 'sense_idxs': verb_i_sense_idxs, 'pos': pos_i}
 
         x_t = np.vstack(S[pos_i, verb_i_sense_idxs])
         x_t1 = strategy_payoff(image_details, W, S, Z, images, senses, sense_labels)
@@ -198,7 +207,7 @@ def main():
 
     accuracy = (accuracy[1] / (accuracy[0] + accuracy[1])) * 100
 
-    print("Sense accuracy is: %s" % accuracy)
+    print('Sense accuracy is: %s' % accuracy)
 
 
 if __name__ == '__main__':
