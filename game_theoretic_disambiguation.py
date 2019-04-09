@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics.pairwise import rbf_kernel
+from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
 
 
@@ -74,6 +76,30 @@ def affinity_matrix(elements):
             W[i, j] = w_ij
             W[j, i] = w_ij
     return W
+
+
+def affinity_augment(affinity_matrix, mult=1):
+    """ 
+    Apply MinMax Scaling and Gaussian augment to affinity matrix.
+
+    Args:
+        affinity_matrix: pairwise similarity matrix
+        mult: multiplier of gamma term
+
+    Returns:
+        The pairwise transformed similarity matrix
+    """
+    scaler = MinMaxScaler()
+    scaler.fit(affinity_matrix)
+    scaled_affinity = scaler.transform(affinity_matrix)
+    gamma = 1 / (mult * np.var(scaled_affinity))
+    augmented_affinity = np.zeros(scaled_affinity.shape)
+    for i in range(len(scaled_affinity)):
+        for j in range(i + 1, len(scaled_affinity)):
+            a_ij = np.exp(-np.square(scaled_affinity[i, j]) * gamma) 
+            augmented_affinity[i, j] = a_ij
+            augmented_affinity[j, i] = a_ij
+    return augmented_affinity
 
 
 def strategy_space(images, senses, sense_labels):
@@ -202,11 +228,14 @@ def main():
 
         x_t = np.vstack(S[i, verb_i_sense_idxs])
         x_t1 = strategy_payoff(image_details, W, S, Z, images)
+        S[i, verb_i_sense_idxs] = x_t1.flatten()
 
-        while np.all(np.abs(x_t1 - x_t) > 0.00001):
+        count = 0
+        while np.all(np.abs(x_t1 - x_t) > 0.00001) and count < 1:
             x_t = x_t1
             x_t1 = strategy_payoff(image_details, W, S, Z, images)
             S[i, verb_i_sense_idxs] = x_t1.flatten()
+            count += 1
 
         pred_sense_id = senses.iloc[np.argmax(S[i])]['sense_num']
         sense_id = sense_labels.at[row.Index, 'sense_chosen']
