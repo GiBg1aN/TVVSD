@@ -17,6 +17,7 @@ def parse_tuhoi(path):
     tuhoi_df = pd.read_csv(path, encoding='ISO-8859-1')
     tuhoi_df = tuhoi_df[['image_name', 'tag1', 'orig_tag1']]  # tag1: verb, orig_tag1: object
     tuhoi_df['tag1'] = tuhoi_df['tag1'].apply(lambda x: x.split('\n')[0])  # take first verb only
+    tuhoi_df['category_id'] = tuhoi_df.apply(lambda row: row.orig_tag1, 1)
     tuhoi_df['caption'] = tuhoi_df.apply(lambda row: 'person ' + row.tag1 + ' ' + row.orig_tag1, 1)
     tuhoi_df.rename(columns={'image_name': 'image_id'}, inplace=True)
     return tuhoi_df.drop(['tag1', 'orig_tag1'], axis=1)
@@ -70,25 +71,19 @@ def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     Returns:
         'new_df' with 'img_id' row appended
     """
+    row = caption_df[caption_df['image_id'] == img_id]
     if category_df is None:
-        row = caption_df[caption_df['image_id'] == img_id]
-        if id_prefix is not None:
-            new_img_id = id_prefix + str(img_id)
-        else:
-            new_img_id = str(img_id)
-        return pd.concat([new_df, pd.DataFrame({'image_id': new_img_id,
-                                                'category': None,
-                                                'caption': row.caption})])
+        category_row = row
     else:
-        caption_row = caption_df[caption_df['image_id'] == img_id]
         category_row = category_df[category_df['image_id'] == img_id]
-        if id_prefix is not None:
-            new_img_id = id_prefix + str(img_id)
-        else:
-            new_img_id = str(img_id)
-        return pd.concat([new_df, pd.DataFrame({'image_id': new_img_id,
-                                                'category': category_row.iloc[0].category_id,
-                                                'caption': caption_row.caption})])
+
+    if id_prefix is not None:
+        new_img_id = id_prefix + str(img_id)
+    else:
+        new_img_id = str(img_id)
+    return pd.concat([new_df, pd.DataFrame({'image_id': new_img_id,
+                                            'category': category_row.iloc[0].category_id,
+                                            'caption': row.caption})])
 
 
 def main():
@@ -121,6 +116,7 @@ def main():
             img_id = int(img_name[len('COCO_train2014_'):])
             new_df1 = append_row(caption_train_df, object_train_df, img_id,
                                  'COCO_train2014_', new_df1)
+
         elif img_name.startswith('COCO_val2014_'):
             img_id = int(img_name[len('COCO_val2014_'):])
             new_df2 = append_row(caption_val_df, object_val_df, img_id, 'COCO_val2014_', new_df2)
