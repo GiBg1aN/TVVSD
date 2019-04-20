@@ -129,7 +129,7 @@ def main():
     print(len(new_df.image_id), 'rows.')
     print(len(new_df.image_id.unique()), 'unique annotations.')
     print('Writing...')
-    new_df.to_csv('filtered_annotations.csv')
+    new_df.to_csv('filtered_annotations.csv', index=False)
 
 
 if __name__ == '__main__':
