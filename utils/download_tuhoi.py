@@ -1,32 +1,26 @@
+"""
+Single-verb VerSe images are downloaded from TUHOI repository.
+"""
 import pandas as pd
 import requests
-import re
-
 from tqdm import tqdm
 
 
-sense_labels = pd.read_csv('full_sense_annotations.csv')
-sense_labels = sense_labels[sense_labels['COCO/TUHOI'] == 'TUHOI']
+SENSE_LABELS = pd.read_csv('data/labels/full_sense_annotations_filtered.csv')
+SENSE_LABELS = SENSE_LABELS[SENSE_LABELS['COCO/TUHOI'] == 'TUHOI']
 
-url = 'http://169.44.201.108:7002/imagenet/'
-download_folder = '/run/media/gibg1an/Dati/Download/dataset/'
+URL = 'http://disi.unitn.it/~dle/images/DET/'
+DOWNLOAD_FOLDER = 'data/images/TUHOI/'
 
-image_2013_count = 0
-
-for i, row in tqdm(enumerate(sense_labels.itertuples())):
-    if row.image.startswith('ILSVRC2012_val'):
+for i, row in tqdm(enumerate(SENSE_LABELS.itertuples())):
+    if row.image.startswith('ILSVRC'):
         folder = 'val/'
     elif row.image.startswith('n'):
-        folder = re.match("^n\d+", row.image).group()
-    elif row.image.startswith('ILSVRC2013_val'):
-        image_2013_count += 1
-        continue
+        folder = 'train/'
     else:
-        print('Unknown prefix: %s' % row.image)
+        print('Unknown prefix, image name: %s' % row.image)
 
-    r = requests.get(url + folder + row.image)
+    r = requests.get(URL + folder + row.image)
 
-    with open(download_folder + row.image, 'wb') as f:
+    with open(DOWNLOAD_FOLDER + row.image, 'wb') as f:
         f.write(r.content)
-
-print('%s ILSVRC2013 items' % image_2013_count)

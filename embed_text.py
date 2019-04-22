@@ -1,3 +1,7 @@
+"""
+Captions and Senses are preprocessed (typos fix, tokenization, stopwords
+filtering) and embedded (Caption, Object class, Caption+Object class).
+"""
 import numpy as np
 import pandas as pd
 from nltk.corpus import stopwords
@@ -25,11 +29,14 @@ def preprocess_text(caption, model, stop_words):
 
 def embed_text(text_tokens, model):
     """
-    Embed a sequence of words and average and normalise them
+    Embed a sequence of words and average and normalise them.
 
     Args:
         text_tokens: tokenised string
-        model: word2vec model
+        model: trained word2vec model
+
+    Returns:
+        A 300-dim normalised numpy vector
     """
     acc = np.zeros(model.vector_size)
     for token in text_tokens:
@@ -51,6 +58,9 @@ def embed_data_descriptions(model, input_df):
 
     Returns:
         A dataframe of numpy 300-dim vectors with image id as index
+        and columns: 'e_caption' (embedded caption), 'e_category'
+        (embedded category), 'e_combined' (combination of caption and
+        category embedding).
     """
 
     descriptions_df = input_df.copy()
@@ -97,8 +107,10 @@ def embed_data_senses(model, input_df):
             lemma, sense_num, definition, ontonotes_sense_examples
 
     Returns:
-        A dataframe with columns: lemma, sense_num, definition; where
-        the definition is a numpy 300-dim vector
+        A dataframe of numpy 300-dim vectors with image id as index
+        and columns: 'e_definition' (embedded definition), 'e_examples'
+        (embedded examples), 'e_combined' (combination of definition and
+        examples embedding), 'lemma', 'sense_num'.
     """
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
@@ -128,41 +140,50 @@ def embed_data_senses(model, input_df):
 def spell_fix(filepath, typos):
     """
     Correct 'filepath' text using 'typos'.
+    Write the fixed test in a file _filepath
 
     Args:
         filepath: path of file to fix
         typos: list of tuples ('wrong', 'correct')
 
     Returns:
-        None (Write the fixed test in a file _filepath)
+        None
     """
+    path_parts = filepath.split('/')
+    path_parts[-1] = '_' + path_parts[-1]
+    new_filepath = 'generated/' + path_parts[-1]
+
     with open(filepath, 'r') as file:
         data = file.read()
         for typo, correct in typos:
             data = data.replace(typo, correct)
-    with open('_' + filepath, 'w') as file:
+    with open(new_filepath, 'w') as file:
         file.write(data)
 
 
 def main():
+    """
+    Load data, spellcheck and embed
+    """
     print('Loading word2vec Network...')
     model = api.load('word2vec-google-news-300')
     model.init_sims(replace=True)
 
     print('Spellchecking annotations...')
-    spell_fix('filtered_annotations.csv', TYPOS)
+    spell_fix('generated/filtered_annotations.csv', TYPOS)
     print('Embedding annotations...')
-    embedded_captions = embed_data_descriptions(model, pd.read_csv('_filtered_annotations.csv'))
+    embedded_captions = embed_data_descriptions(
+        model, pd.read_csv('generated/_filtered_annotations.csv'))
     print('Writing Data...')
-    embedded_captions.to_pickle('embedded_captions.pkl')
+    embedded_captions.to_pickle('generated/embedded_annotations.pkl')
 
     print('Spellchecking senses...')
-    spell_fix('verse_visualness_labels.tsv', TYPOS2)
+    spell_fix('data/labels/verse_visualness_labels.tsv', TYPOS2)
     print('Embedding senses...')
     embedded_senses = embed_data_senses(
-        model, pd.read_csv('_verse_visualness_labels.tsv', sep='\t'))
+        model, pd.read_csv('generated/_verse_visualness_labels.tsv', sep='\t'))
     print('Writing Data...')
-    embedded_senses.to_pickle('embedded_senses.pkl')
+    embedded_senses.to_pickle('generated/embedded_senses.pkl')
 
 
 if __name__ == '__main__':

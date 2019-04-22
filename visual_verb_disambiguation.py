@@ -1,3 +1,7 @@
+"""
+Perform Visual Verb Sense Disambiguation according to Gella at. al.
+method.
+"""
 import numpy as np
 import pandas as pd
 
@@ -29,7 +33,7 @@ def filter_image_name(img_name):
 def simple_disambiguation(images, senses, labels, image_column, verb_types):
     """
     Compute cosine similarity between images and senses representation
-    vectors Accuracy is computed and printed.
+    vectors. Accuracy is computed and printed.
 
     Args:
         images: A dataframe of image representations
@@ -49,56 +53,53 @@ def simple_disambiguation(images, senses, labels, image_column, verb_types):
     accuracy = {'motion': [0, 0], 'non_motion': [0, 0]}
     for _, row in enumerate(images.itertuples()):
         i_t = np.array(getattr(row, image_column))
-        image_id = row.Index
-        verbs = labels.query('image == @image_id')['lemma'].to_frame()
+        verb = labels.query('image == @row.Index')['lemma'].iloc[0] # row index is image_id
+        filtered_senses = senses.query('lemma == @verb')
 
-        for _, row2 in enumerate(verbs.itertuples()):
-            verb = row2.lemma
-            filtered_senses = senses.query('lemma == @verb')
-            # Cosine similarity between image i and every other image j
-            dot_prod = filtered_senses['e_combined'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy()
-            s_hat = np.argmax(dot_prod)
-            pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
-            sense_id = labels.query('image == @image_id and lemma == @verb')['sense_chosen'].iloc[0]
+        # Cosine similarity between image i_t and every other sense s_t
+        dot_prod = filtered_senses['e_combined'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy()
+        s_hat = np.argmax(dot_prod)
+        pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
+        sense_id = labels.query('image == @row.Index and lemma == @verb')['sense_chosen'].iloc[0]
 
-            if verb in verb_types['motion']:
-                if sense_id == pred_sense_id:
-                    accuracy['motion'][1] += 1
-                else:
-                    accuracy['motion'][0] += 1
-            elif verb in verb_types['non_motion']:
-                if sense_id == pred_sense_id:
-                    accuracy['non_motion'][1] += 1
-                else:
-                    accuracy['non_motion'][0] += 1
+        # Accuracy statistics
+        if verb in verb_types['motion']:
+            if sense_id == pred_sense_id:
+                accuracy['motion'][1] += 1
             else:
-                raise ValueError('Unknown verb type')
+                accuracy['motion'][0] += 1
+        elif verb in verb_types['non_motion']:
+            if sense_id == pred_sense_id:
+                accuracy['non_motion'][1] += 1
+            else:
+                accuracy['non_motion'][0] += 1
+        else:
+            raise ValueError('Unknown verb type')
 
     print('%s representation, sense accuracy:' % image_column)
-    print('Motion verbs: %s' % ((accuracy['motion'][1] /
-                                (accuracy['motion'][0] + accuracy['motion'][1])) * 100))
-    print('Non-motion verbs: %s' % ((accuracy['non_motion'][1] /
-                                    (accuracy['non_motion'][0] + accuracy['non_motion'][1])) * 100))
+    print('Motion verbs: %s' % ((accuracy['motion'][1] / (accuracy['motion'][0] + accuracy['motion'][1])) * 100))
+    print('Non-motion verbs: %s' % ((accuracy['non_motion'][1] / (accuracy['non_motion'][0] + accuracy['non_motion'][1])) * 100))
     print('-')
 
 
 def main():
-    embedded_captions = pd.read_pickle('embedded_captions.pkl')
-    embedded_senses = pd.read_pickle('embedded_senses.pkl')
-    captions_sense_labels = pd.read_csv('full_sense_annotations.csv')
+    "Load embedded image and caption, and disambiguate senses."
+    embedded_captions = pd.read_pickle('generated/embedded_annotations.pkl')
+    embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
+    captions_sense_labels = pd.read_csv('generated/full_sense_annotations_filtered.csv')
     captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
 
     verb_types = {}
 
-    with open('motion_verbs.csv') as motion_verbs:
+    with open('data/labels/motion_verbs.csv') as motion_verbs:
         verb_types['motion'] = [line.rstrip('\n') for line in motion_verbs]
 
-    with open('non_motion_verbs.csv') as non_motion_verbs:
+    with open('data/labels/non_motion_verbs.csv') as non_motion_verbs:
         verb_types['non_motion'] = [line.rstrip('\n') for line in non_motion_verbs]
 
     for representation_type in embedded_captions.columns.to_list():
-        simple_disambiguation(embedded_captions, embedded_senses,
-                              captions_sense_labels, representation_type, verb_types)
+        simple_disambiguation(embedded_captions, embedded_senses, captions_sense_labels,
+                              representation_type, verb_types)
 
 
 if __name__ == '__main__':

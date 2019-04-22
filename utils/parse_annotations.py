@@ -1,6 +1,31 @@
+"""
+Read COCO (JSON) and TUHOI (CSV) annotations files and combine them in
+a single CSV.
+"""
 import json
-import os
 import pandas as pd
+
+
+def remove_duplicates(filepath):
+    """
+    Drop images with multiple verbs associated and write the new
+    dataframe in the file: 'full_sense_annotations_filtered.csv' in
+    the folder 'generated'.
+
+    Args:
+        filepath: the filepath of CSV to filter out
+
+    Returns:
+        None
+    """
+    sense_labels = pd.read_csv(filepath)
+    duplicates = pd.DataFrame(sense_labels.groupby('image')['lemma'].count()).query('lemma > 1')
+    dups = duplicates.index.to_list()
+
+    for dup in dups:
+        sense_labels = sense_labels.drop(list(sense_labels.query('image == @dup').index))
+
+    sense_labels.to_csv('generated/full_sense_annotations_filtered.csv', index=False)
 
 
 def parse_tuhoi(path):
@@ -75,25 +100,28 @@ def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     if category_df is None:
         category_row = row
     else:
-        category_row = category_df[category_df['image_id'] == img_id]
+        category_row = category_df[category_df['image_id'] == img_id].iloc[0]
 
     if id_prefix is not None:
         new_img_id = id_prefix + str(img_id)
     else:
         new_img_id = str(img_id)
     return pd.concat([new_df, pd.DataFrame({'image_id': new_img_id,
-                                            'category': category_row.iloc[0].category_id,
+                                            'category': category_row.category_id,
                                             'caption': row.caption})])
 
 
 def main():
+    """
+    Read annotations and combine them.
+    """
     print('Parsing data...')
-    caption_train_df = parse_coco('annotations_trainval2014/annotations/captions_train2014.json')
-    caption_val_df = parse_coco('annotations_trainval2014/annotations/captions_val2014.json')
-    object_train_df = parse_coco('annotations_trainval2014/annotations/instances_train2014.json')
-    object_val_df = parse_coco('annotations_trainval2014/annotations/instances_val2014.json')
+    caption_train_df = parse_coco('data/annotations/COCO/captions_train2014.json')
+    caption_val_df = parse_coco('data/annotations/COCO/captions_val2014.json')
+    object_train_df = parse_coco('data/annotations/COCO/instances_train2014.json')
+    object_val_df = parse_coco('data/annotations/COCO/instances_val2014.json')
 
-    categories_labels = [line.rstrip('\n') for line in open('coco-labels-paper.txt')]
+    categories_labels = [line.rstrip('\n') for line in open('data/labels/coco-labels-paper.txt')]
     categories_labels = {str(i + 1): categories_labels[i] for i in range(len(categories_labels))}
 
     object_train_df['category_id'] = object_train_df['category_id'].apply(
@@ -101,10 +129,11 @@ def main():
     object_val_df['category_id'] = object_val_df['category_id'].apply(
         lambda id: categories_labels.get(str(id)))
 
-    tuhoi_df = parse_tuhoi('crowdflower_result.csv')
+    tuhoi_df = parse_tuhoi('data/annotations/TUHOI/crowdflower_result.csv')
 
-    # Get annotations only for downloaded images
-    img_list = [os.path.splitext(x)[0] for x in os.listdir('dataset')]
+    remove_duplicates('data/labels/full_sense_annotations.csv')
+    labels = pd.read_csv('generated/full_sense_annotations_filtered.csv')
+    img_list = labels['image'].unique().tolist()
 
     new_df1 = pd.DataFrame(columns=['image_id', 'category', 'caption'])
     new_df2 = pd.DataFrame(columns=['image_id', 'category', 'caption'])
@@ -113,15 +142,14 @@ def main():
     print('Aggregating...')
     for img_name in img_list:
         if img_name.startswith('COCO_train2014_'):
-            img_id = int(img_name[len('COCO_train2014_'):])
+            img_id = int(img_name.split('.')[0][len('COCO_train2014_'):])
             new_df1 = append_row(caption_train_df, object_train_df, img_id,
                                  'COCO_train2014_', new_df1)
-
         elif img_name.startswith('COCO_val2014_'):
-            img_id = int(img_name[len('COCO_val2014_'):])
+            img_id = int(img_name.split('.')[0][len('COCO_val2014_'):])
             new_df2 = append_row(caption_val_df, object_val_df, img_id, 'COCO_val2014_', new_df2)
         else:
-            new_df3 = append_row(tuhoi_df, None, img_name, None, new_df3)
+            new_df3 = append_row(tuhoi_df, None, img_name.split('.')[0], None, new_df3)
 
     new_df = pd.concat([new_df1, new_df2, new_df3])
     new_df.reset_index(drop=True, inplace=True)
@@ -129,7 +157,7 @@ def main():
     print(len(new_df.image_id), 'rows.')
     print(len(new_df.image_id.unique()), 'unique annotations.')
     print('Writing...')
-    new_df.to_csv('filtered_annotations.csv', index=False)
+    new_df.to_csv('generated/filtered_annotations.csv', index=False)
 
 
 if __name__ == '__main__':
