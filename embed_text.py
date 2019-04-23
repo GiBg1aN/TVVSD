@@ -38,12 +38,8 @@ def embed_text(text_tokens, model):
     Returns:
         A 300-dim normalised numpy vector
     """
-    acc = np.zeros(model.vector_size)
-    for token in text_tokens:
-        acc += model.wv.word_vec(token, use_norm=True)
-    word_average = acc / len(text_tokens)
-
-    return word_average / np.linalg.norm(word_average)
+    word_average = np.mean([model.wv.word_vec(token) for token in text_tokens], 0)
+    return word_average / np.linalg.norm(word_average, ord=2)
 
 
 def embed_data_descriptions(model, input_df):
@@ -54,13 +50,13 @@ def embed_data_descriptions(model, input_df):
     Args:
         model: pre-trained word2vec gensim model
         input_df: dataframe of image captions with columns:
-            image_id, category, caption
+            image_id, object, caption
 
     Returns:
         A dataframe of numpy 300-dim vectors with image id as index
-        and columns: 'e_caption' (embedded caption), 'e_category'
-        (embedded category), 'e_combined' (combination of caption and
-        category embedding).
+        and columns: 'e_caption' (embedded caption), 'e_object'
+        (embedded object), 'e_combined' (combination of caption and
+        object embedding).
     """
 
     descriptions_df = input_df.copy()
@@ -72,20 +68,20 @@ def embed_data_descriptions(model, input_df):
     # Caption preprocessing
     captions_tokens = descriptions_df['caption'].apply(
         lambda r: preprocess_text(r, model, stop_words))
-    categories_tokens = descriptions_df['category'].apply(
+    categories_tokens = descriptions_df['object'].apply(
         lambda r: preprocess_text(r, model, stop_words))
 
     # Caption embedding
     descriptions_df['e_caption'] = captions_tokens.apply(lambda r: embed_text(r, model))
-    descriptions_df['e_category'] = categories_tokens.apply(lambda r: embed_text(r, model))
+    descriptions_df['e_object'] = categories_tokens.apply(lambda r: embed_text(r, model))
     descriptions_df['e_combined'] = (captions_tokens + categories_tokens).apply(
         lambda r: embed_text(r, model))
 
-    descriptions_df.drop(['caption', 'category'], axis=1, inplace=True)
+    descriptions_df.drop(['caption', 'object'], axis=1, inplace=True)
 
     # Captions of the same image are averaged
     group_captions = descriptions_df.groupby('image_id')['e_caption']
-    group_categories = descriptions_df.groupby('image_id')['e_category']
+    group_categories = descriptions_df.groupby('image_id')['e_object']
     group_combined = descriptions_df.groupby('image_id')['e_combined']
     rows_per_image = pd.DataFrame(group_captions.count())
     accumulator_captions = group_captions.apply(np.sum).to_frame()
@@ -94,7 +90,7 @@ def embed_data_descriptions(model, input_df):
     summed = pd.concat([accumulator_captions, accumulator_categories, accumulator_combined], axis=1)
 
     unnormalised_average = summed.divide(rows_per_image.values, axis=0)
-    return unnormalised_average.applymap(lambda r: r / np.linalg.norm(r))
+    return unnormalised_average.applymap(lambda r: r / np.linalg.norm(r, ord=2))
 
 
 def embed_data_senses(model, input_df):
@@ -176,6 +172,7 @@ def main():
         model, pd.read_csv('generated/_filtered_annotations.csv'))
     print('Writing Data...')
     embedded_captions.to_pickle('generated/embedded_annotations.pkl')
+    del embedded_captions
 
     print('Spellchecking senses...')
     spell_fix('data/labels/verse_visualness_labels.tsv', TYPOS2)
@@ -184,6 +181,7 @@ def main():
         model, pd.read_csv('generated/_verse_visualness_labels.tsv', sep='\t'))
     print('Writing Data...')
     embedded_senses.to_pickle('generated/embedded_senses.pkl')
+    del embedded_senses
 
 
 if __name__ == '__main__':

@@ -63,24 +63,6 @@ def parse_coco(path):
     return pd.DataFrame(coco_dictionary.get('annotations'))
 
 
-def parse_coco_categories(object_annotations):
-    """
-    Convert object annotations from dictionary structure to DataFrame.
-
-    Args:
-        object_annotations: a list of dictionaries
-
-    Returns:
-        A DataFrame with columns: 'image_id', 'category_id'
-    """
-    ids = [x.get('image_id') for x in object_annotations]
-    categories = [x.get('category_id') for x in object_annotations]
-    coco_df = pd.DataFrame()
-    coco_df['image_id'] = ids
-    coco_df['category_id'] = categories
-    return coco_df
-
-
 def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     """
     Extract the caption and the category related to 'img_id' from
@@ -98,17 +80,17 @@ def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     """
     row = caption_df[caption_df['image_id'] == img_id]
     if category_df is None:
-        category_row = row
+        category_row = row.category_id
     else:
-        category_row = category_df[category_df['image_id'] == img_id].iloc[0]
+        category_row = category_df[category_df.index == img_id].iloc[0]
 
     if id_prefix is not None:
         new_img_id = id_prefix + str(img_id)
     else:
         new_img_id = str(img_id)
-    return pd.concat([new_df, pd.DataFrame({'image_id': new_img_id,
-                                            'category': category_row.category_id,
-                                            'caption': row.caption})])
+
+    new_row = pd.DataFrame({'image_id': new_img_id, 'object': category_row, 'caption': row.caption})
+    return pd.concat([new_df, new_row])
 
 
 def main():
@@ -129,22 +111,28 @@ def main():
     object_val_df['category_id'] = object_val_df['category_id'].apply(
         lambda id: categories_labels.get(str(id)))
 
+    object_train_df = object_train_df.groupby('image_id')['category_id'].apply(
+        lambda x: ' '.join(list(set(x))))
+    object_val_df = object_val_df.groupby('image_id')['category_id'].apply(
+        lambda x: ' '.join(list(set(x))))
+
     tuhoi_df = parse_tuhoi('data/annotations/TUHOI/crowdflower_result.csv')
 
     remove_duplicates('data/labels/full_sense_annotations.csv')
     labels = pd.read_csv('generated/full_sense_annotations_filtered.csv')
     img_list = labels['image'].unique().tolist()
 
-    new_df1 = pd.DataFrame(columns=['image_id', 'category', 'caption'])
-    new_df2 = pd.DataFrame(columns=['image_id', 'category', 'caption'])
-    new_df3 = pd.DataFrame(columns=['image_id', 'category', 'caption'])
+    new_df1 = pd.DataFrame(columns=['image_id', 'object', 'caption'])
+    new_df2 = pd.DataFrame(columns=['image_id', 'object', 'caption'])
+    new_df3 = pd.DataFrame(columns=['image_id', 'object', 'caption'])
 
     print('Aggregating...')
     for img_name in img_list:
         if img_name.startswith('COCO_train2014_'):
             img_id = int(img_name.split('.')[0][len('COCO_train2014_'):])
-            new_df1 = append_row(caption_train_df, object_train_df, img_id,
-                                 'COCO_train2014_', new_df1)
+            new_df1 = append_row(caption_train_df, object_train_df,
+                                 img_id, 'COCO_train2014_', new_df1)
+
         elif img_name.startswith('COCO_val2014_'):
             img_id = int(img_name.split('.')[0][len('COCO_val2014_'):])
             new_df2 = append_row(caption_val_df, object_val_df, img_id, 'COCO_val2014_', new_df2)
