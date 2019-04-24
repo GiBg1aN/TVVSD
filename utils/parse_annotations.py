@@ -30,22 +30,33 @@ def remove_duplicates(filepath):
 
 def parse_tuhoi(path):
     """
-    Read TUHOI annotations and generate captions in the form:
-    'subject-verb-object'.
+    Read TUHOI annotations and generate object annotations and captions
+    in the form: 'subject-verb-object'.
 
     Args:
         path: TUHOI annotations file path
 
     Returns:
-        A dataframe with columns: 'image_name', 'caption'
+        A dataframe with columns: 'image_name', 'object', caption'
     """
     tuhoi_df = pd.read_csv(path, encoding='ISO-8859-1')
-    tuhoi_df = tuhoi_df[['image_name', 'tag1', 'orig_tag1']]  # tag1: verb, orig_tag1: object
-    tuhoi_df['tag1'] = tuhoi_df['tag1'].apply(lambda x: x.split('\n')[0])  # take first verb only
-    tuhoi_df['category_id'] = tuhoi_df.apply(lambda row: row.orig_tag1, 1)
-    tuhoi_df['caption'] = tuhoi_df.apply(lambda row: 'person ' + row.tag1 + ' ' + row.orig_tag1, 1)
-    tuhoi_df.rename(columns={'image_name': 'image_id'}, inplace=True)
-    return tuhoi_df.drop(['tag1', 'orig_tag1'], axis=1)
+
+    new_df = pd.DataFrame(columns=['image_id', 'object', 'caption'])
+
+    for _, row in enumerate(tuhoi_df.itertuples()):
+        for tag_index in range(1, 10):
+            verbs = getattr(row, 'tag' + str(tag_index)).split('\n')
+            if ''.join(verbs) == '':
+                break
+            for verb in verbs:
+                if verb != 'n' and verb != '':
+                    caption = 'person ' + verb + ' ' + getattr(row, 'orig_tag' + str(tag_index))
+                    object_category = getattr(row, 'orig_tag' + str(tag_index))
+                    new_row = pd.DataFrame({'image_id': getattr(row, 'image_name'),
+                                            'object': object_category,
+                                            'caption': caption}, index=[0])
+                    new_df = pd.concat([new_df, new_row])
+    return new_df
 
 
 def parse_coco(path):
@@ -80,7 +91,7 @@ def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     """
     row = caption_df[caption_df['image_id'] == img_id]
     if category_df is None:
-        category_row = row.category_id
+        category_row = row.object
     else:
         category_row = category_df[category_df.index == img_id].iloc[0]
 
