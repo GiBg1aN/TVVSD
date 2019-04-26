@@ -9,6 +9,7 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 
 from tqdm import tqdm
+from visual_verb_disambiguation import filter_image_name
 
 class Identity(nn.Module):
     """Simple identity NN neuron"""
@@ -19,13 +20,13 @@ class Identity(nn.Module):
         return x
 
 
-def image_preprocessing(input_img):
+def image_preprocessing(path_img):
     """
     Preprocess 'input_img' by scaling and normalisation, converting it
     to a Pytorch tensor.
 
     Args:
-        input_img: input jpeg image
+        path_img: input jpeg image
 
     Returns:
         A scaled and normalised version of 'input_img' stored in a
@@ -70,14 +71,22 @@ def main():
     class_layers.append(Identity())
     vgg16.classifier = nn.Sequential(*class_layers)
 
-    images_df = pd.DataFrame(columns=['image_tensor'])
+    images_df = pd.DataFrame(columns=['e_image'])
 
-    for img_name in tqdm(os.listdir('dataset')):
-        path_img = 'dataset/' + img_name
+    captions_sense_labels = pd.read_csv('generated/full_sense_annotations_filtered.csv')
+
+    for _, row in tqdm(enumerate(captions_sense_labels.itertuples())):
+        dataset_folder = row[-1]
+        path_img = 'data/images/' + dataset_folder + '/' + row.image
         tensor_img = image_preprocessing(path_img)
         prediction = vgg16(tensor_img)  # Returns a Tensor of shape (batch, num class labels)
         encoded_tensor = prediction.data.numpy()
-        images_df = images_df.append(pd.Series({'image_tensor': encoded_tensor}, name=img_name),
+        images_df = images_df.append(pd.Series({'e_image': encoded_tensor}, name=row.image),
                                      ignore_index=False)
 
-    images_df.to_pickle('embedded_images.pkl')
+    captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
+    images_df.to_pickle('generated/embedded_images.pkl')
+
+
+if __name__ == '__main__':
+    main()
