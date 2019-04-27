@@ -6,28 +6,6 @@ import json
 import pandas as pd
 
 
-def remove_duplicates(filepath):
-    """
-    Drop images with multiple verbs associated and write the new
-    dataframe in the file: 'full_sense_annotations_filtered.csv' in
-    the folder 'generated'.
-
-    Args:
-        filepath: the filepath of CSV to filter out
-
-    Returns:
-        None
-    """
-    sense_labels = pd.read_csv(filepath)
-    duplicates = pd.DataFrame(sense_labels.groupby('image')['lemma'].count()).query('lemma > 1')
-    dups = duplicates.index.to_list()
-
-    for dup in dups:
-        sense_labels = sense_labels.drop(list(sense_labels.query('image == @dup').index))
-
-    sense_labels.to_csv('generated/full_sense_annotations_filtered.csv', index=False)
-
-
 def parse_tuhoi(path):
     """
     Read TUHOI annotations and generate object annotations and captions
@@ -108,7 +86,7 @@ def main():
     """
     Read annotations and combine them.
     """
-    print('Parsing data...')
+    print('Parsing COCO...')
     caption_train_df = parse_coco('data/annotations/COCO/captions_train2014.json')
     caption_val_df = parse_coco('data/annotations/COCO/captions_val2014.json')
     object_train_df = parse_coco('data/annotations/COCO/instances_train2014.json')
@@ -127,10 +105,10 @@ def main():
     object_val_df = object_val_df.groupby('image_id')['category_id'].apply(
         lambda x: ' '.join(list(set(x))))
 
+    print('Parsing TUHOI...')
     tuhoi_df = parse_tuhoi('data/annotations/TUHOI/crowdflower_result.csv')
 
-    remove_duplicates('data/labels/full_sense_annotations.csv')
-    labels = pd.read_csv('generated/full_sense_annotations_filtered.csv')
+    labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
     img_list = labels['image'].unique().tolist()
 
     new_df1 = pd.DataFrame(columns=['image_id', 'object', 'caption'])

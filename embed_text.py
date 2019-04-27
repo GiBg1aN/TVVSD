@@ -59,11 +59,13 @@ def embed_data_descriptions(model, input_df):
         object embedding).
     """
 
-    descriptions_df = input_df.copy()
-
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
     stop_words.extend(set(stopwords.words('english')))
+
+    grouped_captions = input_df.groupby('image_id')['caption'].apply(lambda x: "%s" % ', '.join(x))
+    grouped_categories = input_df.groupby('image_id')['object'].apply(lambda x: "%s" % ', '.join(x))
+    descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
 
     # Caption preprocessing
     captions_tokens = descriptions_df['caption'].apply(
@@ -77,20 +79,7 @@ def embed_data_descriptions(model, input_df):
     descriptions_df['e_combined'] = (captions_tokens + categories_tokens).apply(
         lambda r: embed_text(r, model))
 
-    descriptions_df.drop(['caption', 'object'], axis=1, inplace=True)
-
-    # Captions of the same image are averaged
-    group_captions = descriptions_df.groupby('image_id')['e_caption']
-    group_categories = descriptions_df.groupby('image_id')['e_object']
-    group_combined = descriptions_df.groupby('image_id')['e_combined']
-    rows_per_image = pd.DataFrame(group_captions.count())
-    accumulator_captions = group_captions.apply(np.sum).to_frame()
-    accumulator_categories = group_categories.apply(np.sum).to_frame()
-    accumulator_combined = group_combined.apply(np.sum).to_frame()
-    summed = pd.concat([accumulator_captions, accumulator_categories, accumulator_combined], axis=1)
-
-    unnormalised_average = summed.divide(rows_per_image.values, axis=0)
-    return unnormalised_average.applymap(lambda r: r / np.linalg.norm(r, ord=2))
+    return descriptions_df.drop(['caption', 'object'], axis=1)
 
 
 def embed_data_senses(model, input_df):

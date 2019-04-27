@@ -1,3 +1,4 @@
+""" Typos in image annotations and senses definitions.  """
 TYPOS2 = [
     ('doughnuts', 'donuts'),
     ('inpromptu', 'spontaneous'),
@@ -182,5 +183,9 @@ TYPOS = [
     ('spires', 'steeples'),
     ('Tuk tuks', 'auto rickshaw'),
     ('Juicerator', 'juice machine'),
-    ('sauerktaut', 'sauerkraut')
+    ('sauerktaut', 'sauerkraut'),
+    ('playpl', 'play'),
+    ('coock', 'cook'),
+    ('eay', 'eat'),
+    ('nonenone', 'none none'),
     ]

@@ -51,30 +51,33 @@ def simple_disambiguation(images, senses, labels, image_column, verb_types):
             nor in non-motion verbs list.
     """
     accuracy = {'motion': [0, 0], 'non_motion': [0, 0]}
-    for _, row in enumerate(images.itertuples()):
-        i_t = np.array(getattr(row, image_column))
-        verb = labels.query('image == @row.Index')['lemma'].iloc[0] # row index is image_id
-        filtered_senses = senses.query('lemma == @verb')
+    for _, image_row in enumerate(images.itertuples()):
+        i_t = np.array(getattr(image_row, image_column))
+        image_id = image_row.Index
+        verbs = labels.query('image == @image_id')['lemma'].to_frame()
 
-        # Cosine similarity between image i_t and every other sense s_t
-        dot_prod = filtered_senses['e_combined'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy()
-        s_hat = np.argmax(dot_prod)
-        pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
-        sense_id = labels.query('image == @row.Index and lemma == @verb')['sense_chosen'].iloc[0]
+        for _, verb_row in enumerate(verbs.itertuples()):
+            verb = verb_row.lemma
+            filtered_senses = senses.query('lemma == @verb')
+            # Cosine similarity between image i_t and every other sense s_t
+            dot_prod = filtered_senses['e_combined'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy()
+            s_hat = np.argmax(dot_prod)
+            pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
+            sense_id = labels.query('image == @image_id and lemma == @verb')['sense_chosen'].iloc[0]
 
-        # Accuracy statistics
-        if verb in verb_types['motion']:
-            if sense_id == pred_sense_id:
-                accuracy['motion'][1] += 1
+            # Accuracy statistics
+            if verb in verb_types['motion']:
+                if sense_id == pred_sense_id:
+                    accuracy['motion'][1] += 1
+                else:
+                    accuracy['motion'][0] += 1
+            elif verb in verb_types['non_motion']:
+                if sense_id == pred_sense_id:
+                    accuracy['non_motion'][1] += 1
+                else:
+                    accuracy['non_motion'][0] += 1
             else:
-                accuracy['motion'][0] += 1
-        elif verb in verb_types['non_motion']:
-            if sense_id == pred_sense_id:
-                accuracy['non_motion'][1] += 1
-            else:
-                accuracy['non_motion'][0] += 1
-        else:
-            raise ValueError('Unknown verb type')
+                raise ValueError('Unknown verb type')
 
     print('%s representation, sense accuracy:' % image_column)
     print('Motion verbs: %s' % ((accuracy['motion'][1] / (accuracy['motion'][0] + accuracy['motion'][1])) * 100))
@@ -86,7 +89,7 @@ def main():
     "Load embedded image and caption, and disambiguate senses."
     embedded_captions = pd.read_pickle('generated/embedded_annotations.pkl')
     embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
-    captions_sense_labels = pd.read_csv('generated/full_sense_annotations_filtered.csv')
+    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
     captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
 
     verb_types = {}
