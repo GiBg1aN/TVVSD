@@ -91,14 +91,10 @@ def player_strategy_indexing(row_index, verb, senses):
     # return vector
 
 
-def sense_index(senses, verb, sense_num):
+def one_hot(senses, verb, sense_num):
     sense = senses.query("lemma == @verb and sense_num == @sense_num").iloc[0]
-    return senses.index.get_loc(sense.name)
-
-
-def one_hot(size, sense_idx):
-    vector = np.zeros(size)
-    vector[sense_idx] = 1
+    vector = np.zeros(len(senses))
+    vector[senses.index.get_loc(sense.name)] = 1
     return vector
 
 
@@ -122,19 +118,20 @@ def labelling(senses, sense_labels):
         node = sense_labels.query("lemma == @verb and sense_chosen == @sense_num").iloc[0]
         node_idx = node.name
         labels.append(node_idx)
-    return labels
+    return np.array(labels)
 
 
 # One-hot encoded senses
-def gtg(y, W, labeled_senses_idx, strategies):
+def gtg(y_, W, labeled_senses_idx, strategies):
 
+    y = y_.copy()
     n_points = len(W)
     n_senses = strategies.shape[1]
 
-    p = strategies
+    p = strategies.copy()
 
-    y = y.apply(lambda r: one_hot(n_senses, sense_index(senses, r.lemma, r.sense_chosen)), axis=1)
-    plabs = y.iloc[labeled_senses_idx]
+    y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
+    plabs = y['one_hot'].iloc[labeled_senses_idx]
     for i in range(len(labeled_senses_idx)):
         p[labeled_senses_idx[i], :] = plabs.iloc[i] 
 
@@ -159,35 +156,57 @@ def gtg(y, W, labeled_senses_idx, strategies):
     unlabeled = np.setdiff1d(np.arange(n_points), labeled_senses_idx)
     n_unlabeled = len(unlabeled)
 
-    correct = 0
-    print(p_new.shape)
+    correct = {'motion': 0, 'non_motion': 0}
+    wrong = {'motion': 0, 'non_motion': 0}
     y_cap = np.zeros((n_unlabeled, 1))
+
+    # Accuracy statistics
     for i in range(n_unlabeled):
-        y_cap[i] = np.argmax(p_new[unlabeled[i],:])
-        print(y_cap[i], np.argmax(y.iloc[unlabeled[i]]))
-        if y_cap[i] == np.argmax(y.iloc[unlabeled[i]]):
-           correct=correct+1
+        y_cap[i] = np.argmax(p_new[unlabeled[i], :])
 
-    accuracy = correct/n_unlabeled
-
-    print(accuracy)
-
-
-
-# sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
-# sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
-# sense_labels = sense_labels[sense_labels['sense_chosen'] != -1]
-# senses = filter_senses(pd.read_csv('data/labels/verse_visualness_labels.tsv', sep='\t'), sense_labels)
-# embedded_annotations = pd.read_pickle('generated/embedded_annotations.pkl')
+        if y['lemma'].iloc[unlabeled[i]] in verb_types['motion']:
+            if y_cap[i] == np.argmax(y['one_hot'].iloc[unlabeled[i]]):
+                correct['motion'] += 1
+            else:
+                wrong['motion'] += 1
+        elif y['lemma'].iloc[unlabeled[i]] in verb_types['non_motion']:
+            if y_cap[i] == np.argmax(y['one_hot'].iloc[unlabeled[i]]):
+                correct['non_motion'] += 1
+            else:
+                wrong['non_motion'] += 1
+        else:
+            raise ValueError('Unknown verb type')
 
 
-# y = sense_labels[['lemma','sense_chosen']]
-# nodes = generate_nodes(embedded_annotations, sense_labels)
-# W = affinity_matrix(nodes)
-# S = strategy_space(sense_labels, senses)
-# labels_index = labelling(senses, sense_labels)
+    print("Motion: %s" % (correct['motion'] / (correct['motion'] + wrong['motion'])))
+    print("Non-motion: %s" % (correct['non_motion'] / (correct['non_motion'] + wrong['non_motion'])))
 
-# gtg(y, W, labels_index, S)
+
+verb_types = {}
+
+with open('data/labels/motion_verbs.csv') as motion_verbs:
+    verb_types['motion'] = [line.rstrip('\n') for line in motion_verbs]
+
+with open('data/labels/non_motion_verbs.csv') as non_motion_verbs:
+    verb_types['non_motion'] = [line.rstrip('\n') for line in non_motion_verbs]
+
+
+sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv', dtype={'sense_chosen': str})
+sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
+sense_labels = sense_labels[sense_labels['sense_chosen'] != '-1']
+sense_labels.reset_index(inplace=True, drop=True)
+senses = pd.read_csv('data/labels/verse_visualness_labels.tsv', sep='\t', dtype={'sense_num': str})
+senses = filter_senses(senses, sense_labels)
+embedded_annotations = pd.read_pickle('generated/embedded_annotations.pkl')
+
+
+y = sense_labels[['lemma','sense_chosen']]
+nodes = generate_nodes(embedded_annotations, sense_labels)
+W = affinity_matrix(nodes)
+S = strategy_space(sense_labels, senses)
+labels_index = labelling(senses, sense_labels)
+
+gtg(y, W, labels_index, S)
 
 
 
