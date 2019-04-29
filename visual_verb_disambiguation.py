@@ -60,10 +60,15 @@ def simple_disambiguation(images, senses, labels, image_column, verb_types):
             verb = verb_row.lemma
             filtered_senses = senses.query('lemma == @verb')
             # Cosine similarity between image i_t and every other sense s_t
-            dot_prod = filtered_senses['e_combined'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy()
+            dot_prod = filtered_senses['e_combined'].apply(
+                lambda s_t: -1 if np.all(i_t == None) else np.dot(i_t, s_t))
             s_hat = np.argmax(dot_prod)
+            if np.max(dot_prod) == -1:  # the image can't be represented
+                continue
             pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
             sense_id = labels.query('image == @image_id and lemma == @verb')['sense_chosen'].iloc[0]
+            if sense_id == -1:  # -1 sense_id do not exists in OntoNotes
+                continue
 
             # Accuracy statistics
             if verb in verb_types['motion']:

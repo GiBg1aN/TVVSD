@@ -38,6 +38,8 @@ def embed_text(text_tokens, model):
     Returns:
         A 300-dim normalised numpy vector
     """
+    if text_tokens == [] or text_tokens is None:
+        return None
     word_average = np.mean([model.wv.word_vec(token) for token in text_tokens], 0)
     return word_average / np.linalg.norm(word_average, ord=2)
 
@@ -61,10 +63,10 @@ def embed_data_descriptions(model, input_df):
 
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
-    stop_words.extend(set(stopwords.words('english')))
 
-    grouped_captions = input_df.groupby('image_id')['caption'].apply(lambda x: "%s" % ', '.join(x))
-    grouped_categories = input_df.groupby('image_id')['object'].apply(lambda x: "%s" % ', '.join(x))
+    concat_strings = lambda x: "%s" % ', '.join(x)
+    grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(concat_strings)
+    grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
     descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
 
     # Caption preprocessing
@@ -99,8 +101,6 @@ def embed_data_senses(model, input_df):
     """
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
-    ntlk_stop_words = set(stopwords.words('english'))
-    stop_words.extend(ntlk_stop_words)
 
     senses_df = input_df.dropna().reset_index(drop=True)
 
