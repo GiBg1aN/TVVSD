@@ -78,6 +78,20 @@ def player_strategy_indexing(row_index, verb, senses):
     return row_index, column_indexes
 
 
+def prior_knowledge(y, nodes, senses, strategies):
+    p = strategies.copy()
+    for i, row in enumerate(y.itertuples()):
+        i_t = nodes[i]
+        verb = getattr(row, 'lemma')
+        filtered_senses = senses.query('lemma == @verb')
+        dot_prod = filtered_senses['vects'].apply(lambda s_t: np.dot(i_t, s_t)).to_numpy()
+        probs = dot_prod / dot_prod.sum()
+        p[player_strategy_indexing(i, verb, senses)] = probs
+
+    return p
+
+
+
 # def one_hot(verb, senses, sense_num):
     # verb_senses = senses.query("lemma == @verb")
     # sense_ids = verb_senses['sense_num'].to_numpy()
@@ -103,9 +117,9 @@ def generate_nodes(images, labels):
     for i, row in enumerate(labels.itertuples()):
         img_name = getattr(row, 'image')
         if nodes is None:
-            nodes = images.loc[img_name]['e_caption']
+            nodes = images.loc[img_name]['e_combined']
         else:
-            node = images.loc[img_name]['e_caption']
+            node = images.loc[img_name]['e_combined']
             nodes = np.vstack([nodes, node])
     return nodes
 
@@ -115,7 +129,7 @@ def labelling(senses, sense_labels):
     for i, row in enumerate(senses.itertuples()):
         verb = getattr(row, 'lemma')
         sense_num = getattr(row, 'sense_num')
-        node = sense_labels.query("lemma == @verb and sense_chosen == @sense_num").iloc[0]
+        node = sense_labels.query("lemma == @verb and sense_chosen == @sense_num").sample(n=1).iloc[0]
         node_idx = node.name
         labels.append(node_idx)
     return np.array(labels)
@@ -196,15 +210,20 @@ sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
 sense_labels = sense_labels[sense_labels['sense_chosen'] != '-1']
 sense_labels.reset_index(inplace=True, drop=True)
 senses = pd.read_csv('data/labels/verse_visualness_labels.tsv', sep='\t', dtype={'sense_num': str})
-senses = filter_senses(senses, sense_labels)
+senses.dropna(inplace=True)
+senses.reset_index(inplace=True, drop=True)
 embedded_annotations = pd.read_pickle('generated/embedded_annotations.pkl')
+embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
 
+senses['vects'] = embedded_senses['e_combined']
+senses = filter_senses(senses, sense_labels)
 
 y = sense_labels[['lemma','sense_chosen']]
 nodes = generate_nodes(embedded_annotations, sense_labels)
 W = affinity_matrix(nodes)
 S = strategy_space(sense_labels, senses)
 labels_index = labelling(senses, sense_labels)
+S = prior_knowledge(y, nodes, senses, S)
 
 gtg(y, W, labels_index, S)
 
