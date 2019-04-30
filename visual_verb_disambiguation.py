@@ -62,7 +62,7 @@ def simple_disambiguation(images, senses, labels, image_column, verb_types):
             # Cosine similarity between image i_t and every other sense s_t
             dot_prod = filtered_senses['e_combined'].apply(
                 lambda s_t: -1 if np.all(i_t == None) else np.dot(i_t, s_t))
-            s_hat = np.argmax(dot_prod)
+            s_hat = dot_prod.values.argmax()
             if np.max(dot_prod) == -1:  # the image can't be represented
                 continue
             pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
@@ -94,7 +94,8 @@ def main():
     "Load embedded image and caption, and disambiguate senses."
     embedded_captions = pd.read_pickle('generated/embedded_annotations.pkl')
     embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
-    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
+    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv',
+                                        dtype={'sense_num': str})
     captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
 
     verb_types = {}
