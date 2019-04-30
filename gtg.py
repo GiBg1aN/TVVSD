@@ -43,6 +43,21 @@ def affinity_matrix(elements):
     return W
 
 
+def mfs_heuristic_strategies(sense_labels, senses):
+    n = len(sense_labels)
+    c = len(senses)
+    S = np.zeros((n, c))  # Strategy space
+
+    for i, row in enumerate(sense_labels.itertuples()):  # Rows: index of image images_captions table
+        verb = getattr(row, 'lemma')
+        filtered_senses = senses.query('lemma == @verb') 
+        mfs_idx = sense_labels.query("lemma == @verb").groupby('sense_chosen')['lemma'].count().values.argmax()
+
+        col = filtered_senses.iloc[mfs_idx].name  # Columns: index of sense in pandas dataframe
+        S[i, col] = 1 
+    return S
+
+
 def strategy_space(sense_labels, senses):
     # """
     # Generate the strategy space of the game, where rows are
@@ -91,20 +106,6 @@ def prior_knowledge(y, nodes, senses, strategies):
     return p
 
 
-
-# def one_hot(verb, senses, sense_num):
-    # verb_senses = senses.query("lemma == @verb")
-    # sense_ids = verb_senses['sense_num'].to_numpy()
-    # class_index = np.where(sense_ids == sense_num)[0]
-
-    # if len(class_index) == 1:
-        # vector = np.zeros(sense_ids.shape)
-        # vector[class_index] = 1
-    # else:
-        # raise ValueError
-    # return vector
-
-
 def one_hot(senses, verb, sense_num):
     sense = senses.query("lemma == @verb and sense_num == @sense_num").iloc[0]
     vector = np.zeros(len(senses))
@@ -112,31 +113,32 @@ def one_hot(senses, verb, sense_num):
     return vector
 
 
-def generate_nodes(images, labels):
+def generate_nodes(images, labels, representation_type):
     nodes = None
     for i, row in enumerate(labels.itertuples()):
         img_name = getattr(row, 'image')
         if nodes is None:
-            nodes = images.loc[img_name]['e_combined']
+            nodes = images.loc[img_name][representation_type]
         else:
-            node = images.loc[img_name]['e_combined']
+            node = images.loc[img_name][representation_type]
             nodes = np.vstack([nodes, node])
     return nodes
 
 
-def labelling(senses, sense_labels):
+def labelling(senses, sense_labels, seed):
+    myseed = np.random.RandomState(seed)
     labels = []
     for i, row in enumerate(senses.itertuples()):
         verb = getattr(row, 'lemma')
         sense_num = getattr(row, 'sense_num')
-        node = sense_labels.query("lemma == @verb and sense_chosen == @sense_num").sample(n=1).iloc[0]
+        node = sense_labels.query("lemma == @verb and sense_chosen == @sense_num").sample(n=1, random_state=myseed).iloc[0]
         node_idx = node.name
         labels.append(node_idx)
     return np.array(labels)
 
 
 # One-hot encoded senses
-def gtg(y_, W, labeled_senses_idx, strategies):
+def gtg(y_, W, labeled_senses_idx, strategies, first_sense=False):
 
     y = y_.copy()
     n_points = len(W)
@@ -152,20 +154,23 @@ def gtg(y_, W, labeled_senses_idx, strategies):
     # p[labeled_senses_idx, :] = plabs
 
     n_iter = 0
-    p_new = np.zeros((n_points, n_senses))
-    while True:
-        q = W @ p
-        dummy = p * q
+    if first_sense:
+        p_new = p
+    else:
+        p_new = np.zeros((n_points, n_senses))
+        while True:
+            q = W @ p
+            dummy = p * q
 
-        for k in range(n_senses):
-            p_new[:, k] = dummy[:, k] / np.sum(dummy, 1)
-     
-        diff = np.linalg.norm(p[:] - p_new[:])
-        p = p_new
-        n_iter += 1
+            for k in range(n_senses):
+                p_new[:, k] = dummy[:, k] / np.sum(dummy, 1)
 
-        if diff < 10 ** -4 or n_iter == 10 ** 4:
-            break;
+            diff = np.linalg.norm(p[:] - p_new[:])
+            p = p_new
+            n_iter += 1
+
+            if diff < 10 ** -4 or n_iter == 10 ** 4:
+                break;
 
     unlabeled = np.setdiff1d(np.arange(n_points), labeled_senses_idx)
     n_unlabeled = len(unlabeled)
@@ -216,16 +221,48 @@ embedded_annotations = pd.read_pickle('generated/embedded_annotations.pkl')
 embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
 
 senses['vects'] = embedded_senses['e_combined']
-senses = filter_senses(senses, sense_labels)
 
 y = sense_labels[['lemma','sense_chosen']]
-nodes = generate_nodes(embedded_annotations, sense_labels)
+# Uniform distribution on senses related to the verb (Semi-supervised)
+seeds = [1001001, 2051995, 579328629, 1337, 7331, 1221, 111, 99, 666, 73, 37, 29, 30124, 30141, 54321]
+senses = filter_senses(senses, sense_labels)
+for seed in seeds:
+    print('Seed: %s' % seed)
+    for representation_type in embedded_annotations.columns.to_list():
+        nodes = generate_nodes(embedded_annotations, sense_labels, representation_type)
+        W = affinity_matrix(nodes)
+        S = strategy_space(sense_labels, senses)
+        labels_index = labelling(senses, sense_labels, seed)
+        print("Encoding: %s " % representation_type)
+        gtg(y, W, labels_index, S)
+
+
+# Probability based on dot prod with senses (unsupervised)
+senses = filter_senses(senses, sense_labels)
+print('Prior probability initialised')
+for representation_type in embedded_annotations.columns.to_list():
+    nodes = generate_nodes(embedded_annotations, sense_labels, representation_type)
+    W = affinity_matrix(nodes)
+    S = strategy_space(sense_labels, senses)
+    labels_index = []
+    S = prior_knowledge(y, nodes, senses, S)
+    print("Encoding: %s " % representation_type)
+    gtg(y, W, labels_index, S)
+
+
+# First Sense Heuristics
+nodes = generate_nodes(embedded_annotations, sense_labels, 'e_caption')
 W = affinity_matrix(nodes)
 S = strategy_space(sense_labels, senses)
-labels_index = labelling(senses, sense_labels)
-S = prior_knowledge(y, nodes, senses, S)
-
-gtg(y, W, labels_index, S)
+labels_index = []
+gtg(y, W, labels_index, S, True)
 
 
+# Most Frequent Sense Heuristics
+senses = filter_senses(senses, sense_labels)
+nodes = generate_nodes(embedded_annotations, sense_labels, 'e_object')
+W = affinity_matrix(nodes)
+S = mfs_heuristic_strategies(sense_labels, senses)
+labels_index = []
+gtg(y, W, labels_index, S, True)
 
