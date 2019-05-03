@@ -29,6 +29,14 @@ def filter_senses(senses, sense_labels):
     return new_senses
 
 
+def combine_data(embeddings, images_features):
+    full_dataframe = pd.concat([embeddings, images_features], axis=1, sort=True)
+    full_dataframe['concat_image_caption'] = full_dataframe.apply(lambda r: np.concatenate([r.e_caption, r.e_image.ravel()]), axis=1)
+    full_dataframe['concat_image_object'] = full_dataframe.apply(lambda r: np.concatenate([r.e_object, r.e_image.ravel()]), axis=1)
+    full_dataframe['concat_image_text'] = full_dataframe.apply(lambda r: np.concatenate([r.e_combined, r.e_image.ravel()]), axis=1)
+    return full_dataframe.applymap(lambda x: x / np.linalg.norm(x, ord=2))
+    
+
 def affinity_matrix(elements):
     """
     Compute parwise similarities of a given array; such matrix is the
@@ -307,7 +315,10 @@ def main():
     with open('data/labels/non_motion_verbs.csv') as non_motion_verbs:
         VERB_TYPES['nonmotion'] = [line.rstrip('\n') for line in non_motion_verbs]
 
+    images_features = pd.read_pickle('generated/images_features.pkl')
+    images_features['e_image'] = images_features['e_image'].apply(lambda x: x / np.linalg.norm(x, ord=2))
     embedded_annotations = pd.read_pickle('generated/embedded_annotations.pkl')
+    full_features = combine_data(embedded_annotations, images_features)
     embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
     senses = pd.read_csv('data/labels/verse_visualness_labels.tsv',
                          sep='\t', dtype={'sense_num': str})
@@ -331,20 +342,20 @@ def main():
     # RUNS
 
     # Uniform distribution on senses related to the verb (Semi-supervised)
-    seed = 73
+    seeds = [73, 37, 29, 30124, 30141, 54321, 1001001, 2051995, 579328629, 1337, 7331, 1221, 111, 99, 666]
     strategies = strategy_space(sense_labels, senses)
-    labels_index = labelling(senses, sense_labels, seed)
-    print('Seed: %s' % seed)
-    for representation_type in embedded_annotations.columns.to_list():
-        nodes = generate_nodes(embedded_annotations, sense_labels, representation_type)
+    for representation_type in full_features.columns.to_list():
+        nodes = generate_nodes(full_features, sense_labels, representation_type)
         affinity = affinity_matrix(nodes)
-        print("Encoding: %s " % representation_type)
-        gtg(y, affinity, labels_index, strategies)
+        for seed in seeds:
+            labels_index = labelling(senses, sense_labels, seed)
+            print('Seed: %s' % seed)
+            gtg(y, affinity, labels_index, strategies)
 
 
     # First Sense Heuristics
     print('First Sense')
-    nodes = generate_nodes(embedded_annotations, sense_labels, 'e_caption')
+    nodes = generate_nodes(full_features, sense_labels, 'e_caption')
     affinity = affinity_matrix(nodes)
     labels_index = []
     gtg(y, affinity, labels_index, strategies, True)
@@ -352,8 +363,8 @@ def main():
 
     # Probability based on dot prod with senses (unsupervised)
     print('Prior probability initialisation')
-    for representation_type in embedded_annotations.columns.to_list():
-        nodes = generate_nodes(embedded_annotations, sense_labels, representation_type)
+    for representation_type in full_features.columns.to_list():
+        nodes = generate_nodes(full_features, sense_labels, representation_type)
         affinity = affinity_matrix(nodes)
         labels_index = []
         strategies = prior_knowledge(y, nodes, senses)
@@ -364,7 +375,7 @@ def main():
     # Most Frequent Sense Heuristics
     print('Most Frequent Sense')
     senses = filter_senses(senses, sense_labels)
-    nodes = generate_nodes(embedded_annotations, sense_labels, 'e_object')
+    nodes = generate_nodes(full_features, sense_labels, 'e_object')
     affinity = affinity_matrix(nodes)
     strategies = mfs_heuristic_strategies(sense_labels, senses)
     labels_index = []
