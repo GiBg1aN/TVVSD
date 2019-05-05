@@ -67,8 +67,6 @@ def simple_disambiguation(images, senses, labels, image_column, verb_types):
                 continue
             pred_sense_id = filtered_senses.iloc[s_hat]['sense_num']
             sense_id = labels.query('image == @image_id and lemma == @verb')['sense_chosen'].iloc[0]
-            if sense_id == -1:  # -1 sense_id do not exists in OntoNotes
-                continue
 
             # Accuracy statistics
             if verb in verb_types['motion']:
@@ -95,8 +93,11 @@ def main():
     embedded_captions = pd.read_pickle('generated/embedded_annotations.pkl')
     embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
     captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv',
-                                        dtype={'sense_num': str})
+                                        dtype={'sense_chosen': str})
     captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
+    # Drop unclassifiable elems
+    captions_sense_labels = captions_sense_labels[captions_sense_labels['sense_chosen'] != '-1']
+    captions_sense_labels.reset_index(inplace=True, drop=True)
 
     verb_types = {}
 

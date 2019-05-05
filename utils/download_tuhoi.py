@@ -6,8 +6,9 @@ import requests
 from tqdm import tqdm
 
 
-SENSE_LABELS = pd.read_csv('data/labels/full_sense_annotations_filtered.csv')
+SENSE_LABELS = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
 SENSE_LABELS = SENSE_LABELS[SENSE_LABELS['COCO/TUHOI'] == 'TUHOI']
+SENSE_LABELS = SENSE_LABELS.drop_duplicates()
 
 URL = 'http://disi.unitn.it/~dle/images/DET/'
 DOWNLOAD_FOLDER = 'data/images/TUHOI/'

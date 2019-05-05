@@ -4,7 +4,6 @@ filtering) and embedded (Caption, Object class, Caption+Object class).
 """
 import numpy as np
 import pandas as pd
-from nltk.corpus import stopwords
 import gensim.downloader as api
 from gensim.utils import simple_preprocess
 from stop_words import get_stop_words
@@ -166,8 +165,8 @@ def main():
     print('Spellchecking senses...')
     spell_fix('data/labels/verse_visualness_labels.tsv', TYPOS2)
     print('Embedding senses...')
-    embedded_senses = embed_data_senses(
-        model, pd.read_csv('generated/_verse_visualness_labels.tsv', sep='\t'))
+    embedded_senses = embed_data_senses(model, pd.read_csv('generated/_verse_visualness_labels.tsv',
+                                                           sep='\t', dtype={'sense_num': str}))
     print('Writing Data...')
     embedded_senses.to_pickle('generated/embedded_senses.pkl')
     del embedded_senses
