@@ -179,7 +179,7 @@ def generate_nodes(images, labels, representation_type):
     return nodes
 
 
-def labelling(senses, sense_labels, seed):
+def labelling(senses, sense_labels, seed, elements_per_label=1):
     """
     Randomly pick a list of elements to label for a
     Semi-supervised approach. A label for each sense is returned.
@@ -194,15 +194,18 @@ def labelling(senses, sense_labels, seed):
         A list of indexes of elements in 'sense_labeles' to label
     """
     myseed = np.random.RandomState(seed)
-    labeled_idx = []
+    labeled_indexes = []
     for _, row in enumerate(senses.itertuples()):
         verb = getattr(row, 'lemma')
         sense_num = getattr(row, 'sense_num')
-        node = sense_labels.query("lemma == @verb and sense_chosen == @sense_num").sample(
-            n=1, random_state=myseed).iloc[0]
-        node_idx = node.name
-        labeled_idx.append(node_idx)
-    return np.array(labeled_idx)
+        nodes = sense_labels.query("lemma == @verb and sense_chosen == @sense_num")
+        sample_size = min(elements_per_label, len(nodes) - 1 if len(nodes) > 1 else 1)
+
+        sample_nodes = nodes.sample(n=sample_size, random_state=myseed)
+        for i in range(sample_size):
+            node_idx = sample_nodes.iloc[i].name
+            labeled_indexes.append(node_idx)
+    return np.array(labeled_indexes)
 
 
 def replicator_dynamics(W, strategies):

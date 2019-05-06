@@ -47,17 +47,20 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features):
         affinity = affinity_matrix(nodes)
         print(representation_type)
         for seed in seeds:
-            labels_index = labelling(senses, sense_labels, seed)
             print('Seed: %s' % seed)
-            motions, non_motions = gtg(y, affinity, labels_index, strategies)
+            for labels_per_class in range(1, 14):
+                print('Min labels: %s' % labels_per_class)
+                labels_index = labelling(senses, sense_labels, seed, labels_per_class)
+                motions, non_motions = gtg(y, affinity, labels_index, strategies)
 
-            print("Motion: %s" % str(motions * 100))
-            print("Non-motion: %s" % str(non_motions * 100))
+                print("Motion: %s" % str(motions * 100))
+                print("Non-motion: %s" % str(non_motions * 100))
 
-            # with open('experiments.csv', 'w') as exps: # labels_per_class, verb_type, column, accuracy
-                # exps.write('1, ' + 'motions, ' + representation_type + ', ' + str(motions) + '\n')
-                # exps.write('1, ' + 'non_motions, ' + representation_type + ', ' + str(non_motions) + '\n')
-                # exps.close()
+                with open('experiments.csv', 'a+') as exps: # labels_per_class, verb_type, column, accuracy
+                    exps.write(str(labels_per_class) + ',' + 'motions,' + representation_type + ',' + str(motions) + '\n')
+                    exps.write(str(labels_per_class) + ',' + 'non_motions,' + representation_type + ',' + str(non_motions) + '\n')
+                    exps.close()
+
 
 def main():
     """ Run multiple GTG experiments. """
