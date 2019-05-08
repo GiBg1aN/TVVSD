@@ -1,4 +1,16 @@
+from itertools import chain
+from sklearn.cross_decomposition import CCA
 from gtg import *
+
+
+def canonical_correlation_analysis(train_data, target_data):
+    # X = full_dataframe['e_caption']
+    # Y = full_dataframe['e_image']
+    X = np.array(list(chain.from_iterable(train_data.values))).reshape(len(train_data), -1)
+    Y = np.array(list(chain.from_iterable(target_data.values))).reshape(len(target_data), -1)
+    cca = CCA(n_components=300)
+    cca.fit(X, Y)
+    X_c, Y_c = cca.transform(X, Y)
 
 
 def combine_data(embeddings, images_features):
@@ -35,16 +47,19 @@ def filter_senses(senses, sense_labels):
     return new_senses
 
 
-def run_experiment_semi_supervised(senses, sense_labels, full_features):
+def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=False):
     y = sense_labels[['lemma', 'sense_chosen']].copy()
     y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
 
     # Uniform distribution on senses related to the verb (Semi-supervised)
     seeds = [73, 37, 29, 30124, 30141, 54321, 1001001, 2051995, 579328629, 1337, 7331, 1221, 111, 99, 666]
-    strategies = strategy_space(sense_labels, senses)
+    if not prior:
+        strategies = strategy_space(sense_labels, senses)
     for representation_type in full_features.columns.to_list():
         nodes = generate_nodes(full_features, sense_labels, representation_type)
         affinity = affinity_matrix(nodes)
+        if prior:
+            strategies = prior_knowledge(y, nodes, senses)
         print(representation_type)
         for seed in seeds:
             print('Seed: %s' % seed)
@@ -85,7 +100,7 @@ def main():
 
 
     # RUNS
-    run_experiment_semi_supervised(filter_senses(senses, sense_labels), sense_labels, full_features)
+    run_experiment_semi_supervised(filter_senses(senses, sense_labels), sense_labels, full_features, False)
     exit()
 
 
