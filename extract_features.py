@@ -1,8 +1,12 @@
+import glob
 import os
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from PIL import Image
 import torch.nn as nn
+import torch
 
 from torch.autograd import Variable
 import torchvision.models as models
@@ -48,6 +52,9 @@ def image_preprocessing(path_img):
                                              transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                                                   std=[0.229, 0.224, 0.225])])
     img = transform_pipeline(input_img)
+    # plt.imshow(img.permute(1,2,0))
+    # plt.show()
+
 
     # PyTorch pretrained models expect the Tensor dims to be (num input imgs, num color channels,
     # height, width).
@@ -65,28 +72,73 @@ def image_preprocessing(path_img):
     return img
 
 
-def main():
-    vgg16 = models.vgg16(pretrained=True)
-    class_layers = (list(vgg16.classifier.children())[:-1])
-    class_layers.append(Identity())
-    vgg16.classifier = nn.Sequential(*class_layers)
-
+def encode_verse_images(vgg16):
     images_df = pd.DataFrame(columns=['e_image'])
-
-    captions_sense_labels = pd.read_csv('generated/full_sense_annotations_filtered.csv')
-
+    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
+    captions_sense_labels = captions_sense_labels[['image', 'COCO/TUHOI']].drop_duplicates()
     for _, row in tqdm(enumerate(captions_sense_labels.itertuples())):
         dataset_folder = row[-1]
         path_img = 'data/images/' + dataset_folder + '/' + row.image
-        tensor_img = image_preprocessing(path_img)
+        tensor_img = image_preprocessing(path_img).cuda()
         prediction = vgg16(tensor_img)  # Returns a Tensor of shape (batch, num class labels)
-        encoded_tensor = prediction.data.numpy()
+        encoded_tensor = prediction.data.cpu().numpy()
         images_df = images_df.append(pd.Series({'e_image': encoded_tensor}, name=row.image),
                                      ignore_index=False)
 
     captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
-    images_df.to_pickle('generated/embedded_images.pkl')
+    images_df.to_pickle('generated/images_features.pkl')
 
+
+def encode_verse_senses():
+    queries = pd.read_csv('data/labels/sense_specific_search_engine_queries.tsv', sep='\t', dtype={'sense_num': str})
+    queries['sense_num'] = queries['sense_num'].apply(lambda x: x.replace('.', '_'))
+    queries['queries'] = queries['queries'].apply(lambda s: s.split(','))
+
+    DOWNLOAD_FOLDER = 'bing_download/'
+    enconding_folder = 'sense_features/'
+
+    with torch.cuda.device(0):
+        for i, row in enumerate(queries.head(1).itertuples()):
+            verb = getattr(row, 'verb')
+            sense_num = getattr(row, 'sense_num')
+            sense_directory = DOWNLOAD_FOLDER + verb + '_' + sense_num + '/'
+
+            queries_directories = os.listdir(sense_directory)
+            vectors = None
+
+            for query_directory in queries_directories:
+                files = glob.glob(sense_directory + query_directory + '/*')
+                files.sort(key=os.path.getmtime)
+
+                for image_path in files[:50]:
+                    tensor_img = image_preprocessing(image_path).cuda()
+                    continue
+                    prediction = vgg16(tensor_img)  # Returns a Tensor of shape (batch, num class labels)
+                    encoded_tensor = prediction.data
+
+                    if vectors is None:
+                        vectors = encoded_tensor
+                    else:
+                        vectors = torch.cat([vectors, encoded_tensor])
+            sense_mean = torch.mean(vectors, 0)
+            print(torch.nonzero(sense_mean))
+
+            filepath = enconding_folder + verb + '_' + sense_num + '.npy'
+            print('Writing %s...' % filepath)
+
+            np.save(filepath, (sense_mean / torch.norm(sense_mean, p=2)).cpu().numpy())
+
+
+def main():
+    cuda = torch.device('cuda')
+    vgg16 = models.vgg16(pretrained=True)
+    vgg16.cuda()
+    class_layers = (list(vgg16.classifier.children())[:-1])
+    class_layers.append(Identity())
+    vgg16.classifier = nn.Sequential(*class_layers)
+
+    encode_verse_images(vgg16)
+ 
 
 if __name__ == '__main__':
     main()
