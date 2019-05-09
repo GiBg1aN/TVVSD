@@ -52,6 +52,12 @@ def parse_coco(path):
     return pd.DataFrame(coco_dictionary.get('annotations'))
 
 
+def parse_flickr(path):
+    flickr = pd.read_csv(path, sep='\t', names=['image_id','caption'])
+    flickr['image_id'] = flickr['image_id'].apply(lambda s: s.split('#')[0])
+    return flickr
+
+
 def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     """
     Extract the caption and the category related to 'img_id' from
@@ -86,6 +92,10 @@ def main():
     """
     Read annotations and combine them.
     """
+    print('Parsing Flickr30k...')
+    flickr_df = parse_flickr('data/annotations/Flickr30k/flickr30k_captions.token')
+    print('Writing...')
+    flickr_df.to_csv('generated/flickr30k_annotations.csv', index=False)
     print('Parsing COCO...')
     caption_train_df = parse_coco('data/annotations/COCO/captions_train2014.json')
     caption_val_df = parse_coco('data/annotations/COCO/captions_val2014.json')
@@ -134,7 +144,7 @@ def main():
     print(len(new_df.image_id), 'rows.')
     print(len(new_df.image_id.unique()), 'unique annotations.')
     print('Writing...')
-    new_df.to_csv('generated/filtered_annotations.csv', index=False)
+    new_df.to_csv('generated/verse_annotations.csv', index=False)
 
 
 if __name__ == '__main__':

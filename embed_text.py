@@ -43,7 +43,7 @@ def embed_text(text_tokens, model):
     return word_average / np.linalg.norm(word_average, ord=2)
 
 
-def embed_data_descriptions(model, input_df):
+def embed_data_descriptions(model, input_df, has_object=True):
     """
     Embed image descriptions into 300-dim vectors using word2vec
     embedding.
@@ -65,22 +65,28 @@ def embed_data_descriptions(model, input_df):
 
     concat_strings = lambda x: "%s" % ', '.join(x)
     grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(concat_strings)
-    grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
-    descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
+    if has_object:
+        grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
+        descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
+    else:
+        descriptions_df = grouped_captions.to_frame()
 
     # Caption preprocessing
     captions_tokens = descriptions_df['caption'].apply(
         lambda r: preprocess_text(r, model, stop_words))
-    categories_tokens = descriptions_df['object'].apply(
-        lambda r: preprocess_text(r, model, stop_words))
+    if has_object:
+        categories_tokens = descriptions_df['object'].apply(
+            lambda r: preprocess_text(r, model, stop_words))
 
     # Caption embedding
     descriptions_df['e_caption'] = captions_tokens.apply(lambda r: embed_text(r, model))
-    descriptions_df['e_object'] = categories_tokens.apply(lambda r: embed_text(r, model))
-    descriptions_df['e_combined'] = (captions_tokens + categories_tokens).apply(
-        lambda r: embed_text(r, model))
+    if has_object:
+        descriptions_df['e_object'] = categories_tokens.apply(lambda r: embed_text(r, model))
+        descriptions_df['e_combined'] = (captions_tokens + categories_tokens).apply(
+            lambda r: embed_text(r, model))
 
-    return descriptions_df.drop(['caption', 'object'], axis=1)
+        return descriptions_df.drop(['caption', 'object'], axis=1)
+    return descriptions_df.drop(['caption'], axis=1)
 
 
 def embed_data_senses(model, input_df):
@@ -154,13 +160,20 @@ def main():
     model.init_sims(replace=True)
 
     print('Spellchecking annotations...')
-    spell_fix('generated/filtered_annotations.csv', TYPOS)
-    print('Embedding annotations...')
-    embedded_captions = embed_data_descriptions(
-        model, pd.read_csv('generated/_filtered_annotations.csv'))
+    spell_fix('generated/verse_annotations.csv', TYPOS)
+    print('Embedding VerSe annotations...')
+    verse_embedding = embed_data_descriptions(
+        model, pd.read_csv('generated/_verse_annotations.csv'))
     print('Writing Data...')
-    embedded_captions.to_pickle('generated/embedded_annotations.pkl')
-    del embedded_captions
+    verse_embedding.to_pickle('generated/verse_embedding.pkl')
+    del verse_embedding
+
+    print('Embedding Flickr30k')
+    flickr_embedding = embed_data_descriptions(
+        model, pd.read_csv('generated/flickr30k_annotations.csv'), False)
+    print('Writing Data...')
+    flickr_embedding.to_pickle('generated/flickr_embedding.pkl')
+    del flickr_embedding
 
     print('Spellchecking senses...')
     spell_fix('data/labels/verse_visualness_labels.tsv', TYPOS2)
@@ -168,7 +181,7 @@ def main():
     embedded_senses = embed_data_senses(model, pd.read_csv('generated/_verse_visualness_labels.tsv',
                                                            sep='\t', dtype={'sense_num': str}))
     print('Writing Data...')
-    embedded_senses.to_pickle('generated/embedded_senses.pkl')
+    embedded_senses.to_pickle('generated/senses_embedding.pkl')
     del embedded_senses
 
 
