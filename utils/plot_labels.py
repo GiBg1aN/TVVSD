@@ -1,9 +1,10 @@
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import pandas as pd
 
 
-def plot_data(exp_data, column_name, axs):
+def plot_data(exp_data, column_name, axs, fmt='-'):
     """
     Plot 'exp_data' using an 'Errorplot'
 
@@ -37,17 +38,20 @@ def plot_data(exp_data, column_name, axs):
     axs[1].yaxis.set_ticks(np.arange(0.65, 1.0, 0.05))
     axs[0].set_ylim(0.6, 1)
     axs[1].set_ylim(0.6, 1)
-    motion_plot = axs[0].errorbar(motion_x_data, motion_y_data, yerr=motion_y_err)
-    non_motion_plot = axs[1].errorbar(non_motion_x_data, non_motion_y_data, yerr=non_motion_y_err)
+    motion_plot = axs[0].errorbar(motion_x_data, motion_y_data, yerr=motion_y_err, fmt=fmt)
+    non_motion_plot = axs[1].errorbar(non_motion_x_data, non_motion_y_data, yerr=non_motion_y_err, fmt=fmt)
 
     return motion_plot, non_motion_plot
 
 
 def main():
     """ Plot Semi-supervised experiment results """
+    matplotlib.rcParams.update({'font.size': 16})
+    matplotlib.rc('xtick', labelsize=20)     
+    matplotlib.rc('ytick', labelsize=20)
+
     columns = ['labels_per_class', 'verb_type', 'representation_type', 'accuracy']
-    exp_data = pd.read_csv('generated/experiments_uniform.csv', names=columns)
-    prior_exp_data = pd.read_csv('generated/experiments_prior.csv', names=columns)
+    exp_data = pd.read_csv('generated/experiments.csv', names=columns)
 
     plt.style.use('seaborn-notebook')
     text_fig, text_axs = plt.subplots(ncols=2)
@@ -65,18 +69,11 @@ def main():
     objcat_motion_plot, _ = plot_data(exp_data, 'concat_image_object', concat_axs)
     textcat_motion_plot, _ = plot_data(exp_data, 'concat_image_text', concat_axs)
 
-    # Prior initialisation
-    prior_cap_motion_plot, _ = plot_data(prior_exp_data, 'e_caption', text_axs)
-    prior_obj_motion_plot, _ = plot_data(prior_exp_data, 'e_object', text_axs)
-    prior_text_motion_plot, _ = plot_data(prior_exp_data, 'e_combined', text_axs)
-
-    text_plots = (cap_motion_plot, obj_motion_plot, text_motion_plot,
-                  prior_cap_motion_plot, prior_obj_motion_plot, prior_text_motion_plot)
+    text_plots = (cap_motion_plot, obj_motion_plot, text_motion_plot)
     cnn_plots = (cnn_motion_plot)
     concat_plots = (capcat_motion_plot, objcat_motion_plot, textcat_motion_plot)
 
-    text_legend_labels = ('Captions', 'Objects annotations', 'Captions+Objects',
-                          'Prior Captions', 'Prior Objects annotations', 'Prior Captions+Objects')
+    text_legend_labels = ('Captions', 'Objects annotations', 'Captions+Objects')
     cnn_legend_labels = ('CNN')
     concat_legend_labels = ('CNN+Captions', 'CNN+Objects', 'CNN+Captions+Objects')
 

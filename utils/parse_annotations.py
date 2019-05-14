@@ -88,9 +88,9 @@ def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     return pd.concat([new_df, new_row])
 
 
-def main():
+def parse_gold():
     """
-    Read annotations and combine them.
+    Read GOLD annotations and combine them.
     """
     print('Parsing Flickr30k...')
     flickr_df = parse_flickr('data/annotations/Flickr30k/flickr30k_captions.token')
@@ -147,5 +147,25 @@ def main():
     new_df.to_csv('generated/verse_annotations.csv', index=False)
 
 
+def parse_pred():
+    pred_captions_1 = json.load(open('pred/neuraltalk_run1.json'))
+    pred_captions_2 = json.load(open('pred/neuraltalk_run2.json'))
+    pred_captions_3 = json.load(open('pred/neuraltalk_run3.json'))
+
+    pred_captions = pred_captions_1 + pred_captions_2 + pred_captions_3
+    image_id = list(map(lambda x: x.get('file_name'), pred_captions))
+    image_id = list(map(lambda s: s.split('/')[-1], image_id))
+    captions = list(map(lambda x: x.get('caption'), pred_captions))
+
+    captions_df = pd.DataFrame({'image_id': image_id, 'caption': captions})
+    captions_df = captions_df.groupby('image_id')['caption'].apply(lambda x: "%s" % ', '.join(x))
+
+    object_df = pd.read_pickle('pred/pred_objects.pkl')
+    object_df['object'] = object_df['object'].apply(lambda r: str(r[0]))
+
+    pred_df = pd.concat([captions_df, object_df], axis=1)
+
+    pred_df.to_csv('generated/pred_verse_annotations.csv', index=False)
+
 if __name__ == '__main__':
-    main()
+    parse_gold()

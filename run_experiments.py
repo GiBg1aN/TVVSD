@@ -77,14 +77,30 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=Fa
                     exps.close()
 
 
+def run_experiment_unsupervised(senses, sense_labels, full_features):
+    y = sense_labels[['lemma', 'sense_chosen']].copy()
+    y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
+
+    for representation_type in ['e_caption', 'e_object', 'e_combined']: #full_features.columns.to_list():
+        nodes = generate_nodes(full_features, sense_labels, representation_type)
+        affinity = affinity_matrix(nodes)
+        strategies = prior_knowledge(y, nodes, senses)
+        print(representation_type)
+        labels_index = []
+        motions, non_motions = gtg(y, affinity, labels_index, strategies)
+
+        print("Motion: %s" % str(motions * 100))
+        print("Non-motion: %s" % str(non_motions * 100))
+
+
 def main():
     """ Run multiple GTG experiments. """
     # File reading and preprocessing
     images_features = pd.read_pickle('generated/images_features.pkl')
     images_features['e_image'] = images_features['e_image'].apply(lambda x: x / np.linalg.norm(x, ord=2))
-    embedded_annotations = pd.read_pickle('generated/embedded_annotations.pkl')
+    embedded_annotations = pd.read_pickle('generated/verse_embedding.pkl')
     full_features = combine_data(embedded_annotations, images_features)
-    embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
+    embedded_senses = pd.read_pickle('generated/senses_embedding.pkl')
     senses = pd.read_csv('data/labels/verse_visualness_labels.tsv',
                          sep='\t', dtype={'sense_num': str})
     sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv',
@@ -100,7 +116,8 @@ def main():
 
 
     # RUNS
-    run_experiment_semi_supervised(filter_senses(senses, sense_labels), sense_labels, full_features, False)
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False)
+    # run_experiment_unsupervised(senses, sense_labels, full_features)
     exit()
 
 
@@ -110,17 +127,6 @@ def main():
     affinity = affinity_matrix(nodes)
     labels_index = []
     gtg(y, affinity, labels_index, strategies, True)
-
-
-    # Probability based on dot prod with senses (unsupervised)
-    print('Prior probability initialisation')
-    for representation_type in full_features.columns.to_list():
-        nodes = generate_nodes(full_features, sense_labels, representation_type)
-        affinity = affinity_matrix(nodes)
-        labels_index = []
-        strategies = prior_knowledge(y, nodes, senses)
-        print("Encoding: %s " % representation_type)
-        gtg(y, affinity, labels_index, strategies)
 
 
     # Most Frequent Sense Heuristics

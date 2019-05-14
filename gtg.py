@@ -12,6 +12,15 @@ with open('data/labels/non_motion_verbs.csv') as non_motion_verbs:
     VERB_TYPES['nonmotion'] = [line.rstrip('\n') for line in non_motion_verbs]
  
 
+def sparsify(M):
+    idx = np.argsort(-M, axis=1)[:,:7]
+    W = np.zeros(M.shape)
+    i = np.arange(len(M))[:, np.newaxis]
+    W[i, idx] = M[i, idx]
+    W = (W + W.transpose()) / 2
+    return W
+
+
 def affinity_matrix(elements):
     """
     Compute parwise similarities of a given array; such matrix is the
@@ -199,6 +208,8 @@ def labelling(senses, sense_labels, seed, elements_per_label=1):
         verb = getattr(row, 'lemma')
         sense_num = getattr(row, 'sense_num')
         nodes = sense_labels.query("lemma == @verb and sense_chosen == @sense_num")
+        if len(nodes) == 0:
+            continue
         sample_size = min(elements_per_label, len(nodes) - 1 if len(nodes) > 1 else 1)
 
         sample_nodes = nodes.sample(n=sample_size, random_state=myseed)
