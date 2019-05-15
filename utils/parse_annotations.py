@@ -165,7 +165,7 @@ def parse_pred():
 
     pred_df = pd.concat([captions_df, object_df], axis=1)
 
-    pred_df.to_csv('generated/pred_verse_annotations.csv', index=False)
+    pred_df.to_csv('generated/pred_verse_annotations.csv')
 
-if __name__ == '__main__':
-    parse_gold()
+# if __name__ == '__main__':
+    # parse_gold()

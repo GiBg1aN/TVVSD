@@ -9,8 +9,11 @@ from gensim.utils import simple_preprocess
 from stop_words import get_stop_words
 from typos import TYPOS, TYPOS2
 
+from nltk.corpus import wordnet as wn
 
-def preprocess_text(caption, model, stop_words):
+
+
+def preprocess_text(caption, model, stop_words, word_net_categories=False):
     """
     Tokenize and remove stopwords/unknown words from a string 'caption'
 
@@ -23,6 +26,16 @@ def preprocess_text(caption, model, stop_words):
         A list of filtered words
     """
     caption_tokens = [w for w in simple_preprocess(caption) if not w in stop_words]
+    if word_net_categories:
+        new_tokens = []
+        for token in caption_tokens:
+            if token in model.vocab:
+                new_tokens.append(token)
+            else:
+                new_token = check_synset_ancestors(token, model, stop_words)
+                if new_token != '':
+                    new_tokens.append(new_token)
+        return new_tokens
     return [token for token in caption_tokens if token in model.vocab]
 
 
@@ -43,7 +56,7 @@ def embed_text(text_tokens, model):
     return word_average / np.linalg.norm(word_average, ord=2)
 
 
-def embed_data_descriptions(model, input_df, has_object=True):
+def embed_data_descriptions(model, input_df, has_object=True, grouped=False):
     """
     Embed image descriptions into 300-dim vectors using word2vec
     embedding.
@@ -63,20 +76,23 @@ def embed_data_descriptions(model, input_df, has_object=True):
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
 
-    concat_strings = lambda x: "%s" % ', '.join(x)
-    grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(concat_strings)
-    if has_object:
-        grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
-        descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
+    if grouped:
+        concat_strings = lambda x: "%s" % ', '.join(x)
+        grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(concat_strings)
+        if has_object:
+            grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
+            descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
+        else:
+            descriptions_df = grouped_captions.to_frame()
     else:
-        descriptions_df = grouped_captions.to_frame()
+        descriptions_df = input_df.copy()
 
     # Caption preprocessing
     captions_tokens = descriptions_df['caption'].apply(
         lambda r: preprocess_text(r, model, stop_words))
     if has_object:
         categories_tokens = descriptions_df['object'].apply(
-            lambda r: preprocess_text(r, model, stop_words))
+            lambda r: preprocess_text(r, model, stop_words, True))
 
     # Caption embedding
     descriptions_df['e_caption'] = captions_tokens.apply(lambda r: embed_text(r, model))
@@ -151,6 +167,26 @@ def spell_fix(filepath, typos):
         file.write(data)
 
 
+def check_synset_ancestors(word, model, stop_words):
+    synset = wn.synsets(word)
+    if synset == []:
+        return ""
+    synset = synset[0]
+    tree = synset.tree(lambda s: s.hypernyms())
+    if len(tree) < 2:
+        return ""
+    branch = tree[1]
+
+    while True:
+        if len(tree) < 2:
+            raise ValueError('Can\' find ancestor in synset tree')
+        token = branch[0].name().split('.')[0]
+        if token not in model.vocab:
+            branch = branch[1]
+        else:
+            return token
+
+
 def main():
     """
     Load data, spellcheck and embed
@@ -164,6 +200,7 @@ def main():
     print('Embedding VerSe annotations...')
     verse_embedding = embed_data_descriptions(
         model, pd.read_csv('generated/_verse_annotations.csv'))
+    # verse_embedding = embed_data_descriptions(model, pd.read_pickle('generated/pred_verse_annotations.pkl'))
     print('Writing Data...')
     verse_embedding.to_pickle('generated/verse_embedding.pkl')
     del verse_embedding

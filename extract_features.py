@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import re
 
@@ -154,15 +155,51 @@ def encode_verse_senses(vgg16, device):
         np.savez(filepath, features=features_list, names=image_names_list)
 
 
+def object_detection(vgg16, cuda):
+    images_df = pd.DataFrame(columns=['e_image'])
+    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
+    captions_sense_labels = captions_sense_labels[['image', 'COCO/TUHOI']].drop_duplicates()
+
+    labels = json.load(open('data/labels/labels.json'))
+    labels = {int(key): value for key, value in labels.items()}
+
+    # scaler = MinMaxScaler()
+
+    for _, row in tqdm(enumerate(captions_sense_labels.itertuples())):
+        dataset_folder = row[-1]
+        path_img = 'images/' + dataset_folder + '/' + row.image
+
+        tensor_img = image_preprocessing(path_img).to(cuda)
+        prediction = vgg16(tensor_img)  # Returns a Tensor of shape (batch, num class labels)
+        encoded_tensor = prediction.data.detach().cpu().numpy()
+        v = np.exp(encoded_tensor)
+        v = v/ v.sum()
+        #v = encoded_tensor.detach().cpu().numpy()
+        #scaler.fit(v.T)
+        #v = scaler.transform(v.T)
+        vid = np.where(v.flatten()>0.7)[0]
+        if len(vid) == 0:
+            vid = [encoded_tensor.argmax()]
+        object_labels = list(map(lambda x: labels[x], vid))
+
+        images_df = images_df.append(pd.Series({'e_image': object_labels}, name=row.image),
+                                     ignore_index=False)
+
+    images_df.to_pickle('generated/pred_object_labels.pkl')
+
+
 def main():
-    cuda = torch.device('cuda:1')
+    cuda = torch.device('cuda:0')
     vgg16 = models.vgg16(pretrained=True)
     vgg16.to(cuda)
+
+    object_detection(vgg16, cuda)
+
     class_layers = (list(vgg16.classifier.children())[:-1])
     class_layers.append(Identity())
     vgg16.classifier = nn.Sequential(*class_layers)
 
-    # encode_verse_images(vgg16)
+    encode_verse_images(vgg16)
     encode_verse_senses(vgg16, cuda)
  
 
