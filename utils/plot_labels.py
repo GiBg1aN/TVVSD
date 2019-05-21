@@ -19,33 +19,42 @@ def plot_data(exp_data, column_name, axs, fmt='-'):
     """
     # FILTERING
     filtered_data = exp_data[exp_data['representation_type'] == column_name]
+    filtered_data_old = filtered_data[filtered_data['labels_per_class'] == 0]
+    filtered_data = filtered_data[filtered_data['labels_per_class'] > 0]
     motion_rows = filtered_data[filtered_data['verb_type'] == 'motions']
     non_motion_rows = filtered_data[filtered_data['verb_type'] == 'non_motions']
+    motion_rows_old = filtered_data_old[filtered_data_old['verb_type'] == 'motions']
+    non_motion_rows_old = filtered_data_old[filtered_data_old['verb_type'] == 'non_motions']
 
     # STATISTICS
     motion_x_data = motion_rows['labels_per_class'].unique()
+    motion_x_data_old = motion_rows_old['labels_per_class'].unique()
     motion_y_data = motion_rows.groupby('labels_per_class').mean().to_numpy()
+    motion_y_data_old = motion_rows_old.groupby('labels_per_class').mean().to_numpy()
     motion_y_err = motion_rows.groupby('labels_per_class').std().to_numpy()
 
     non_motion_x_data = non_motion_rows['labels_per_class'].unique()
+    non_motion_x_data_old = non_motion_rows_old['labels_per_class'].unique()
     non_motion_y_data = non_motion_rows.groupby('labels_per_class').mean().to_numpy()
+    non_motion_y_data_old = non_motion_rows_old.groupby('labels_per_class').mean().to_numpy()
     non_motion_y_err = non_motion_rows.groupby('labels_per_class').std().to_numpy()
 
     axis_fontsize = 35
-    axs[0].xaxis.set_ticks(np.arange(motion_x_data[0], motion_x_data[-1], 1))
+    axs[0].xaxis.set_ticks(np.arange(0, motion_x_data[-1]+1, 1))
     axs[0].xaxis.get_label().set_fontsize(axis_fontsize)
     axs[0].yaxis.get_label().set_fontsize(axis_fontsize)
     axs[1].xaxis.get_label().set_fontsize(axis_fontsize)
     axs[1].yaxis.get_label().set_fontsize(axis_fontsize)
-    axs[1].xaxis.set_ticks(np.arange(motion_x_data[0], motion_x_data[-1], 1))
-    axs[0].yaxis.set_ticks(np.arange(0.65, 1.0, 0.05))
-    axs[1].yaxis.set_ticks(np.arange(0.65, 1.0, 0.05))
+    axs[1].xaxis.set_ticks(np.arange(0, motion_x_data[-1]+1, 1))
     axs[1].yaxis.set_visible(False)
-    #axs.subplots_adjust(wspace=0.1)
     axs[0].set_ylim(0.6, 1)
     axs[1].set_ylim(0.6, 1)
+    axs[0].scatter(motion_x_data_old, motion_y_data_old, marker='$O$')
+    axs[1].scatter(non_motion_x_data_old, non_motion_y_data_old, marker='$O$')
     motion_plot = axs[0].errorbar(motion_x_data, motion_y_data, yerr=motion_y_err, fmt=fmt)
     non_motion_plot = axs[1].errorbar(non_motion_x_data, non_motion_y_data, yerr=non_motion_y_err, fmt=fmt)
+    axs[0].yaxis.set_ticks(np.arange(0.50, 1.0, 0.05))
+    axs[1].yaxis.set_ticks(np.arange(0.50, 1.0, 0.05))
 
     return motion_plot, non_motion_plot
 
@@ -82,7 +91,7 @@ def main(experiments_data):
     cnn_plots = (cnn_motion_plot)
     concat_plots = (capcat_motion_plot, objcat_motion_plot, textcat_motion_plot)
 
-    text_legend_labels = ('Captions', 'Objects annotations', 'Captions+Objects')
+    text_legend_labels = ('Captions', 'Objects', 'Captions+Objects')
     cnn_legend_labels = ('CNN')
     concat_legend_labels = ('CNN+Captions', 'CNN+Objects', 'CNN+Captions+Objects')
 
@@ -122,4 +131,4 @@ def main(experiments_data):
 
 
 if __name__ == '__main__':
-    main('generated/experiments_gold.csv')
+    main('generated/experiments_pred.csv')
