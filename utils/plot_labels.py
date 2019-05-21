@@ -31,11 +31,17 @@ def plot_data(exp_data, column_name, axs, fmt='-'):
     non_motion_y_data = non_motion_rows.groupby('labels_per_class').mean().to_numpy()
     non_motion_y_err = non_motion_rows.groupby('labels_per_class').std().to_numpy()
 
-
+    axis_fontsize = 35
     axs[0].xaxis.set_ticks(np.arange(motion_x_data[0], motion_x_data[-1], 1))
+    axs[0].xaxis.get_label().set_fontsize(axis_fontsize)
+    axs[0].yaxis.get_label().set_fontsize(axis_fontsize)
+    axs[1].xaxis.get_label().set_fontsize(axis_fontsize)
+    axs[1].yaxis.get_label().set_fontsize(axis_fontsize)
     axs[1].xaxis.set_ticks(np.arange(motion_x_data[0], motion_x_data[-1], 1))
     axs[0].yaxis.set_ticks(np.arange(0.65, 1.0, 0.05))
     axs[1].yaxis.set_ticks(np.arange(0.65, 1.0, 0.05))
+    axs[1].yaxis.set_visible(False)
+    #axs.subplots_adjust(wspace=0.1)
     axs[0].set_ylim(0.6, 1)
     axs[1].set_ylim(0.6, 1)
     motion_plot = axs[0].errorbar(motion_x_data, motion_y_data, yerr=motion_y_err, fmt=fmt)
@@ -44,19 +50,22 @@ def plot_data(exp_data, column_name, axs, fmt='-'):
     return motion_plot, non_motion_plot
 
 
-def main():
+def main(experiments_data):
     """ Plot Semi-supervised experiment results """
-    matplotlib.rcParams.update({'font.size': 16})
-    matplotlib.rc('xtick', labelsize=20)     
-    matplotlib.rc('ytick', labelsize=20)
-
     columns = ['labels_per_class', 'verb_type', 'representation_type', 'accuracy']
-    exp_data = pd.read_csv('generated/experiments.csv', names=columns)
+    exp_data = pd.read_csv(experiments_data, names=columns)
 
+    title_fontsize = 40
+    suptitle_fontsize = 30
+    legend_fontsize = 22
+    label_fontsize = 25
     plt.style.use('seaborn-notebook')
     text_fig, text_axs = plt.subplots(ncols=2)
+    plt.subplots_adjust(wspace=0.01)
     cnn_fig, cnn_axs = plt.subplots(ncols=2)
+    plt.subplots_adjust(wspace=0.01)
     concat_fig, concat_axs = plt.subplots(ncols=2)
+    plt.subplots_adjust(wspace=0.01)
 
     # Uniform initialisation
     cap_motion_plot, _ = plot_data(exp_data, 'e_caption', text_axs)
@@ -80,23 +89,37 @@ def main():
     # Text plot settings
     text_axs[0].set(title='Motion verbs', xlabel='#labels', ylabel='Accuracy')
     text_axs[1].set(title='Non-motion verbs', xlabel='#labels', ylabel='Accuracy')
-    text_fig.suptitle('Semi-supervised GTG (text data)')
-    text_fig.legend(text_plots, text_legend_labels, loc='lower center', ncol=6)
+    text_axs[0].title.set_fontsize(title_fontsize)
+    text_axs[1].title.set_fontsize(title_fontsize)
+    text_axs[0].tick_params(labelsize=label_fontsize)
+    text_axs[1].tick_params(labelsize=label_fontsize)
+    #text_fig.suptitle('Semi-supervised GTG (text data)', fontsize=suptitle_fontsize)
+    #text_fig.legend(text_plots, text_legend_labels, loc='center right', ncol=6, fontsize=legend_fontsize)
+    text_axs[1].legend(text_plots, text_legend_labels, loc='lower center', ncol=1, fontsize=legend_fontsize)
 
     # CNN plot settings
     cnn_axs[0].set(title='Motion verbs', xlabel='#labels', ylabel='Accuracy')
     cnn_axs[1].set(title='Non-motion verbs', xlabel='#labels', ylabel='Accuracy')
-    cnn_fig.suptitle('Semi-supervised GTG (visual data)')
+    cnn_axs[0].title.set_fontsize(title_fontsize)
+    cnn_axs[1].title.set_fontsize(title_fontsize)
+    cnn_axs[0].tick_params(labelsize=label_fontsize)
+    cnn_axs[1].tick_params(labelsize=label_fontsize)
+    #cnn_fig.suptitle('Semi-supervised GTG (visual data)', fontsize=suptitle_fontsize)
     # cnn_fig.legend(cnn_plots, cnn_legend_labels, loc='lower center')
 
     # Concat plot settings
     concat_axs[0].set(title='Motion verbs', xlabel='#labels', ylabel='Accuracy')
-    concat_axs[1].set(title='Non-motion verbs', xlabel='#labels', ylabel='Accuracy')
-    concat_fig.suptitle('Semi-supervised GTG (Visual and textual concatenation)')
-    concat_fig.legend(concat_plots, concat_legend_labels, loc='lower center', ncol=3)
+    concat_axs[1].set(title='Non-motion verbs', xlabel='#labels', ylabel='Accuracy',)
+    concat_axs[0].title.set_fontsize(title_fontsize)
+    concat_axs[1].title.set_fontsize(title_fontsize)
+    concat_axs[0].tick_params(labelsize=label_fontsize)
+    concat_axs[1].tick_params(labelsize=label_fontsize)
+    #concat_fig.suptitle('Semi-supervised GTG (Visual and textual concatenation)', fontsize=suptitle_fontsize)
+    #concat_fig.legend(concat_plots, concat_legend_labels, loc='lower center', ncol=1, fontsize=legend_fontsize)
+    concat_axs[1].legend(concat_plots, concat_legend_labels, loc='lower center', ncol=1, fontsize=legend_fontsize)
 
     plt.show()
 
 
 if __name__ == '__main__':
-    main()
+    main('generated/experiments_gold.csv')
