@@ -12,7 +12,6 @@ from typos import TYPOS, TYPOS2
 from nltk.corpus import wordnet as wn
 
 
-
 def preprocess_text(caption, model, stop_words, word_net_categories=False):
     """
     Tokenize and remove stopwords/unknown words from a string 'caption'
@@ -56,7 +55,7 @@ def embed_text(text_tokens, model):
     return word_average / np.linalg.norm(word_average, ord=2)
 
 
-def embed_data_descriptions(model, input_df, has_object=True, grouped=False):
+def embed_data_descriptions(model, input_df, has_object=True, grouped=True):
     """
     Embed image descriptions into 300-dim vectors using word2vec
     embedding.
@@ -76,7 +75,7 @@ def embed_data_descriptions(model, input_df, has_object=True, grouped=False):
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
 
-    if grouped:
+    if not grouped:
         concat_strings = lambda x: "%s" % ', '.join(x)
         grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(concat_strings)
         if has_object:
@@ -199,8 +198,7 @@ def main():
     spell_fix('generated/verse_annotations.csv', TYPOS)
     print('Embedding VerSe annotations...')
     verse_embedding = embed_data_descriptions(
-        model, pd.read_csv('generated/_verse_annotations.csv'))
-    # verse_embedding = embed_data_descriptions(model, pd.read_pickle('generated/pred_verse_annotations.pkl'))
+        model, pd.read_csv('generated/_verse_annotations.csv'), True,True)
     print('Writing Data...')
     verse_embedding.to_pickle('generated/verse_embedding.pkl')
     del verse_embedding

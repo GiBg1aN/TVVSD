@@ -96,8 +96,8 @@ def main(experiments_data):
     concat_legend_labels = ('CNN+Captions', 'CNN+Objects', 'CNN+Captions+Objects')
 
     # Text plot settings
-    text_axs[0].set(title='Motion verbs', xlabel='#labels', ylabel='Accuracy')
-    text_axs[1].set(title='Non-motion verbs', xlabel='#labels', ylabel='Accuracy')
+    text_axs[0].set(title='Motion verbs', xlabel='#labeled points', ylabel='Accuracy')
+    text_axs[1].set(title='Non-motion verbs', xlabel='#labeled points', ylabel='Accuracy')
     text_axs[0].title.set_fontsize(title_fontsize)
     text_axs[1].title.set_fontsize(title_fontsize)
     text_axs[0].tick_params(labelsize=label_fontsize)
@@ -107,8 +107,8 @@ def main(experiments_data):
     text_axs[1].legend(text_plots, text_legend_labels, loc='lower center', ncol=1, fontsize=legend_fontsize)
 
     # CNN plot settings
-    cnn_axs[0].set(title='Motion verbs', xlabel='#labels', ylabel='Accuracy')
-    cnn_axs[1].set(title='Non-motion verbs', xlabel='#labels', ylabel='Accuracy')
+    cnn_axs[0].set(title='Motion verbs', xlabel='#labeled points', ylabel='Accuracy')
+    cnn_axs[1].set(title='Non-motion verbs', xlabel='#labeled points', ylabel='Accuracy')
     cnn_axs[0].title.set_fontsize(title_fontsize)
     cnn_axs[1].title.set_fontsize(title_fontsize)
     cnn_axs[0].tick_params(labelsize=label_fontsize)
@@ -117,8 +117,8 @@ def main(experiments_data):
     # cnn_fig.legend(cnn_plots, cnn_legend_labels, loc='lower center')
 
     # Concat plot settings
-    concat_axs[0].set(title='Motion verbs', xlabel='#labels', ylabel='Accuracy')
-    concat_axs[1].set(title='Non-motion verbs', xlabel='#labels', ylabel='Accuracy',)
+    concat_axs[0].set(title='Motion verbs', xlabel='#labeled points', ylabel='Accuracy')
+    concat_axs[1].set(title='Non-motion verbs', xlabel='#labeled points', ylabel='Accuracy',)
     concat_axs[0].title.set_fontsize(title_fontsize)
     concat_axs[1].title.set_fontsize(title_fontsize)
     concat_axs[0].tick_params(labelsize=label_fontsize)

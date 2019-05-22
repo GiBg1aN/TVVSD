@@ -55,16 +55,17 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=Fa
     seeds = [73, 37, 29, 30124, 30141, 54321, 1001001, 2051995, 579328629, 1337, 7331, 1221, 111, 99, 666]
     if not prior:
         strategies = strategy_space(sense_labels, senses)
-    for representation_type in full_features.columns.to_list():
-        nodes = generate_nodes(full_features, sense_labels, representation_type)
-        affinity = affinity_matrix(nodes)
-        if prior:
-            strategies = prior_knowledge(y, nodes, senses)
-        print(representation_type)
-        for seed in seeds:
-            print('Seed: %s' % seed)
-            for labels_per_class in range(1, 14):
-                print('Min labels: %s' % labels_per_class)
+
+    for labels_per_class in range(1, 14):
+        print('Min labels: %s' % labels_per_class)
+        for representation_type in full_features.columns.to_list():
+            nodes = generate_nodes(full_features, sense_labels, representation_type)
+            affinity = affinity_matrix(nodes)
+            if prior:
+                strategies = prior_knowledge(y, nodes, senses)
+            print(representation_type)
+            for seed in seeds:
+                print('Seed: %s' % seed)
                 labels_index = labelling(senses, sense_labels, seed, labels_per_class)
                 motions, non_motions = gtg(y, affinity, labels_index, strategies)
 
@@ -81,7 +82,7 @@ def run_experiment_unsupervised(senses, sense_labels, full_features):
     y = sense_labels[['lemma', 'sense_chosen']].copy()
     y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
 
-    for representation_type in ['e_caption', 'e_object', 'e_combined']: #full_features.columns.to_list():
+    for representation_type in full_features.columns.to_list():
         nodes = generate_nodes(full_features, sense_labels, representation_type)
         affinity = affinity_matrix(nodes)
         strategies = prior_knowledge(y, nodes, senses)
@@ -96,23 +97,25 @@ def run_experiment_unsupervised(senses, sense_labels, full_features):
 def main():
     """ Run multiple GTG experiments. """
     # File reading and preprocessing
-    images_features = pd.read_pickle('generated/images_features.pkl')
+    images_features = pd.read_pickle('generated/gold/images_features_new.pkl')
     images_features['e_image'] = images_features['e_image'].apply(lambda x: x / np.linalg.norm(x, ord=2))
-    embedded_annotations = pd.read_pickle('generated/verse_embedding.pkl')
+    embedded_annotations = pd.read_pickle('generated/pred/pred_verse_embedding.pkl')
     full_features = combine_data(embedded_annotations, images_features)
-    embedded_senses = pd.read_pickle('generated/senses_embedding.pkl')
+    # embedded_senses = pd.read_pickle('generated/senses_embedding.pkl')
     senses = pd.read_csv('data/labels/verse_visualness_labels.tsv',
                          sep='\t', dtype={'sense_num': str})
+    #sense_labels = pd.read_csv('generated/pami_tab5_sense_labels.csv',
+    #                           dtype={'sense_chosen': str})
     sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv',
                                dtype={'sense_chosen': str})
 
-    sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
+    # sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
     sense_labels = sense_labels[sense_labels['sense_chosen'] != '-1']  # Drop unclassifiable elems
-    senses.dropna(inplace=True)
+    # senses.dropna(inplace=True)
     sense_labels.reset_index(inplace=True, drop=True)
-    senses.reset_index(inplace=True, drop=True)
+    # senses.reset_index(inplace=True, drop=True)
 
-    senses['vects'] = embedded_senses['e_combined']  # Sense embeddings for prior initialisation
+    # senses['vects'] = embedded_senses['e_combined']  # Sense embeddings for prior initialisation
 
 
     # RUNS
@@ -123,20 +126,29 @@ def main():
 
     # First Sense Heuristics
     print('First Sense')
+    y = sense_labels[['lemma', 'sense_chosen']].copy()
+    y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
     nodes = generate_nodes(full_features, sense_labels, 'e_caption')
     affinity = affinity_matrix(nodes)
     labels_index = []
-    gtg(y, affinity, labels_index, strategies, True)
+    strategies = strategy_space(sense_labels, senses) 
+    motions, non_motions = gtg(y, affinity, labels_index, strategies, True)
+    print("Motion: %s" % str(motions * 100))
+    print("Non-motion: %s" % str(non_motions * 100))
 
 
     # Most Frequent Sense Heuristics
     print('Most Frequent Sense')
-    senses = filter_senses(senses, sense_labels)
+    #senses = filter_senses(senses, sense_labels)
+    y = sense_labels[['lemma', 'sense_chosen']].copy()
+    y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
     nodes = generate_nodes(full_features, sense_labels, 'e_object')
     affinity = affinity_matrix(nodes)
     strategies = mfs_heuristic_strategies(sense_labels, senses)
     labels_index = []
-    gtg(y, affinity, labels_index, strategies, True)
+    motions, non_motions = gtg(y, affinity, labels_index, strategies, True)
+    print("Motion: %s" % str(motions * 100))
+    print("Non-motion: %s" % str(non_motions * 100))
 
 
 if __name__ == '__main__':

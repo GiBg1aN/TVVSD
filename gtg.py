@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import torch
 from visual_verb_disambiguation import filter_image_name
 
 
@@ -15,9 +16,11 @@ with open('data/labels/non_motion_verbs.csv') as non_motion_verbs:
 def sparsify(M):
     idx = np.argsort(-M, axis=1)[:,:7]
     W = np.zeros(M.shape)
-    i = np.arange(len(M))[:, np.newaxis]
-    W[i, idx] = M[i, idx]
-    W = (W + W.transpose()) / 2
+    for i in range(idx.shape[0]):
+       idx_i = idx[i,:]
+       W[i,idx_i]= M[i,idx_i] 
+    W = (W + W.transpose())/2
+
     return W
 
 
@@ -219,7 +222,7 @@ def labelling(senses, sense_labels, seed, elements_per_label=1):
     return np.array(labeled_indexes)
 
 
-def replicator_dynamics(W, strategies):
+def replicator_dynamics(W, strategies, max_iter=10):
     """
     Compute Nash equilibria using Replicator Dynamics.
 
@@ -231,24 +234,16 @@ def replicator_dynamics(W, strategies):
         The strategy space after the game convergence
     """
     p = strategies.copy()
-    p_new = np.zeros(p.shape)
-    n_senses = p.shape[1]
     n_iter = 0
 
-    while True:
-        q = W @ p
-        dummy = p * q
-
-        for k in range(n_senses):
-            p_new[:, k] = dummy[:, k] / np.sum(dummy, 1)
-
-        diff = np.linalg.norm(p[:] - p_new[:])
-        p = p_new
+    X = torch.from_numpy(p)
+    W = torch.from_numpy(W)
+    while n_iter < max_iter:
+        X = X * torch.matmul(W, X)
+        X /= (X.sum(dim=X.dim() - 1).unsqueeze(X.dim() - 1) + 10**-15)
         n_iter += 1
 
-        if diff < 10 ** -4 or n_iter == 10 ** 4:
-            break
-    return p_new
+    return X.numpy()
 
 
 # One-hot encoded senses
