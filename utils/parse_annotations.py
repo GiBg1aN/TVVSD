@@ -167,5 +167,5 @@ def parse_pred():
 
     pred_df.to_csv('generated/pred_verse_annotations.csv')
 
-# if __name__ == '__main__':
-    # parse_gold()
+if __name__ == '__main__':
+    parse_gold()

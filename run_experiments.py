@@ -3,17 +3,20 @@ from sklearn.cross_decomposition import CCA
 from gtg import *
 
 
-def canonical_correlation_analysis(train_data, target_data):
-    # X = full_dataframe['e_caption']
-    # Y = full_dataframe['e_image']
-    X = np.array(list(chain.from_iterable(train_data.values))).reshape(len(train_data), -1)
-    Y = np.array(list(chain.from_iterable(target_data.values))).reshape(len(target_data), -1)
-    cca = CCA(n_components=300)
-    cca.fit(X, Y)
-    X_c, Y_c = cca.transform(X, Y)
-
-
 def combine_data(embeddings, images_features):
+    """
+    Concatenate the 300-dim word-embeddings-vector and the 4096-dim
+    VGG16 feature vector and unit-normalise the output vector.
+
+    Args:
+        embeddings: embedding vector
+        images_features: visual feature-vector
+
+    Returns:
+        A dataframe containing the columns:
+            'e_caption', 'e_object', 'e_combined', 'e_image',
+            'concat_image_caption', 'concat_image_object', 'concat_image_text'.
+    """
     full_dataframe = pd.concat([embeddings, images_features], axis=1, sort=True)
     full_dataframe['concat_image_caption'] = full_dataframe.apply(lambda r: np.concatenate([r.e_caption, r.e_image.ravel()]), axis=1)
     full_dataframe['concat_image_object'] = full_dataframe.apply(lambda r: np.concatenate([r.e_object, r.e_image.ravel()]), axis=1)
@@ -48,6 +51,21 @@ def filter_senses(senses, sense_labels):
 
 
 def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=False):
+    """
+    Run semi-supervised GTG experiments, they are run with an increased number
+    of elements per label (from 1 to 13). Each experiment is replicated 15
+    times, each one with a different seed. Results are then aggregated in
+    term of mean+standard deviation.
+
+    Args:
+        senses: A dataframe of verb senses
+        sense_labels: A dataframe containing the correct sense for each
+            pair (image, verb).
+        full_features: A dataframe containing a different feature representation
+            for each column. Each row is a data point.
+        prior: whether to initialise the strategy space with a prior
+            probability or not.
+    """
     y = sense_labels[['lemma', 'sense_chosen']].copy()
     y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
 
@@ -57,7 +75,7 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=Fa
         strategies = strategy_space(sense_labels, senses)
 
     for labels_per_class in range(1, 14):
-        print('Min labels: %s' % labels_per_class)
+        print('Min labels per class: %s' % labels_per_class)
         for representation_type in full_features.columns.to_list():
             nodes = generate_nodes(full_features, sense_labels, representation_type)
             affinity = affinity_matrix(nodes)
@@ -79,19 +97,34 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=Fa
 
 
 def run_experiment_unsupervised(senses, sense_labels, full_features):
+    """
+    Run totally unsupervised GTG experiments.
+
+    Args:
+        senses: A dataframe of verb senses
+        sense_labels: A dataframe containing the correct sense for each
+            pair (image, verb).
+        full_features: A dataframe containing a different feature representation
+            for each column. Each row is a data point.
+    """
     y = sense_labels[['lemma', 'sense_chosen']].copy()
     y['one_hot'] = y.apply(lambda r: one_hot(senses, r.lemma, r.sense_chosen), axis=1)
 
     for representation_type in full_features.columns.to_list():
         nodes = generate_nodes(full_features, sense_labels, representation_type)
         affinity = affinity_matrix(nodes)
-        strategies = prior_knowledge(y, nodes, senses)
+        strategies = strategy_space(sense_labels, senses)
         print(representation_type)
         labels_index = []
         motions, non_motions = gtg(y, affinity, labels_index, strategies)
 
         print("Motion: %s" % str(motions * 100))
         print("Non-motion: %s" % str(non_motions * 100))
+
+        with open('experiments.csv', 'a+') as exps: # labels_per_class, verb_type, column, accuracy
+            exps.write(str(0) + ',' + 'motions,' + representation_type + ',' + str(motions) + '\n')
+            exps.write(str(0) + ',' + 'non_motions,' + representation_type + ',' + str(non_motions) + '\n')
+            exps.close()
 
 
 def main():
@@ -119,8 +152,8 @@ def main():
 
 
     # RUNS
-    run_experiment_semi_supervised(senses, sense_labels, full_features, False)
-    # run_experiment_unsupervised(senses, sense_labels, full_features)
+    # run_experiment_semi_supervised(senses, sense_labels, full_features, False)
+    run_experiment_unsupervised(senses, sense_labels, full_features)
     exit()
 
 

@@ -14,12 +14,17 @@ from nltk.corpus import wordnet as wn
 
 def preprocess_text(caption, model, stop_words, word_net_categories=False):
     """
-    Tokenize and remove stopwords/unknown words from a string 'caption'
+    Tokenize and remove stopwords/unknown words from a string.
+    If word_net_categories is true, and a word is not in the dictionary, its
+    WordNet ancestor is returned until the term is known (used for object labels
+    embedding).
 
     Args:
         caption: input string
         model: word2vec model
         stop_words: list of stopwords
+        word_net_categories: whether to traverse WordNet hierarchy for unknown
+            words or not
 
     Returns:
         A list of filtered words
@@ -51,11 +56,11 @@ def embed_text(text_tokens, model):
     """
     if text_tokens == [] or text_tokens is None:
         return None
-    word_average = np.mean([model.wv.word_vec(token) for token in text_tokens], 0)
+    word_average = np.mean([model.word_vec(token) for token in text_tokens], 0)
     return word_average / np.linalg.norm(word_average, ord=2)
 
 
-def embed_data_descriptions(model, input_df, has_object=True, grouped=True):
+def embed_data_descriptions(model, input_df, has_object=True, grouped_captions=False):
     """
     Embed image descriptions into 300-dim vectors using word2vec
     embedding.
@@ -64,6 +69,9 @@ def embed_data_descriptions(model, input_df, has_object=True, grouped=True):
         model: pre-trained word2vec gensim model
         input_df: dataframe of image captions with columns:
             image_id, object, caption
+        has_object: has an 'object' column
+        grouped_captions: all captions related to a picture are already
+            concatenated to a string
 
     Returns:
         A dataframe of numpy 300-dim vectors with image id as index
@@ -75,9 +83,9 @@ def embed_data_descriptions(model, input_df, has_object=True, grouped=True):
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
 
-    if not grouped:
+    if not grouped_captions:
         concat_strings = lambda x: "%s" % ', '.join(x)
-        grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(concat_strings)
+        grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(lambda x: concat_strings(x[:3]))
         if has_object:
             grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
             descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
@@ -198,17 +206,10 @@ def main():
     spell_fix('generated/verse_annotations.csv', TYPOS)
     print('Embedding VerSe annotations...')
     verse_embedding = embed_data_descriptions(
-        model, pd.read_csv('generated/_verse_annotations.csv'), True,True)
+        model, pd.read_csv('generated/_verse_annotations.csv'), True, False)
     print('Writing Data...')
     verse_embedding.to_pickle('generated/verse_embedding.pkl')
     del verse_embedding
-
-    print('Embedding Flickr30k')
-    flickr_embedding = embed_data_descriptions(
-        model, pd.read_csv('generated/flickr30k_annotations.csv'), False)
-    print('Writing Data...')
-    flickr_embedding.to_pickle('generated/flickr_embedding.pkl')
-    del flickr_embedding
 
     print('Spellchecking senses...')
     spell_fix('data/labels/verse_visualness_labels.tsv', TYPOS2)

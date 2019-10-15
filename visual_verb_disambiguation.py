@@ -90,8 +90,9 @@ def simple_disambiguation(images, senses, labels, image_column, verb_types):
 
 def main():
     "Load embedded image and caption, and disambiguate senses."
-    embedded_captions = pd.read_pickle('generated/embedded_annotations.pkl')
-    embedded_senses = pd.read_pickle('generated/embedded_senses.pkl')
+    embedded_captions = pd.read_pickle('generated/verse_embedding.pkl')
+    # embedded_captions = embedded_captions.set_index('image_id')
+    embedded_senses = pd.read_pickle('generated/senses_embedding.pkl')
     captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv',
                                         dtype={'sense_chosen': str})
     captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
