@@ -1,5 +1,7 @@
-"""
-Single-verb VerSe images are downloaded from TUHOI repository.
+"""Download TUHOI
+
+VerSe images are downloaded from TUHOI repository to
+'data/images/TUHOI/' folder.
 """
 import pandas as pd
 import requests

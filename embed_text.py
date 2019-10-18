@@ -1,15 +1,16 @@
-"""
+"""Embed Text
+
 Captions and Senses are preprocessed (typos fix, tokenization, stopwords
-filtering) and embedded (Caption, Object class, Caption+Object class).
+filtering) and embedded to a dataframe
+(Caption, Object class, Caption+Object class).
 """
 import numpy as np
 import pandas as pd
 import gensim.downloader as api
 from gensim.utils import simple_preprocess
+from nltk.corpus import wordnet as wn
 from stop_words import get_stop_words
 from typos import TYPOS, TYPOS2
-
-from nltk.corpus import wordnet as wn
 
 
 def preprocess_text(caption, model, stop_words, word_net_categories=False):
@@ -36,7 +37,7 @@ def preprocess_text(caption, model, stop_words, word_net_categories=False):
             if token in model.vocab:
                 new_tokens.append(token)
             else:
-                new_token = check_synset_ancestors(token, model, stop_words)
+                new_token = check_synset_ancestors(token, model)
                 if new_token != '':
                     new_tokens.append(new_token)
         return new_tokens
@@ -60,7 +61,7 @@ def embed_text(text_tokens, model):
     return word_average / np.linalg.norm(word_average, ord=2)
 
 
-def embed_data_descriptions(model, input_df, has_object=True, grouped_captions=False):
+def embed_data_descriptions(model, input_df):
     """
     Embed image descriptions into 300-dim vectors using word2vec
     embedding.
@@ -69,9 +70,6 @@ def embed_data_descriptions(model, input_df, has_object=True, grouped_captions=F
         model: pre-trained word2vec gensim model
         input_df: dataframe of image captions with columns:
             image_id, object, caption
-        has_object: has an 'object' column
-        grouped_captions: all captions related to a picture are already
-            concatenated to a string
 
     Returns:
         A dataframe of numpy 300-dim vectors with image id as index
@@ -83,33 +81,25 @@ def embed_data_descriptions(model, input_df, has_object=True, grouped_captions=F
     # Stopwords definition
     stop_words = list(get_stop_words('en'))
 
-    if not grouped_captions:
-        concat_strings = lambda x: "%s" % ', '.join(x)
-        grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(lambda x: concat_strings(x[:3]))
-        if has_object:
-            grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
-            descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
-        else:
-            descriptions_df = grouped_captions.to_frame()
-    else:
-        descriptions_df = input_df.copy()
+    concat_strings = lambda x: "%s" % ', '.join(x)
+    grouped_captions = input_df.groupby('image_id')['caption'].unique().apply(
+        lambda x: concat_strings(x[:3]))
+    grouped_categories = input_df.groupby('image_id')['object'].unique().apply(concat_strings)
+    descriptions_df = pd.concat([grouped_captions, grouped_categories], axis=1)
 
     # Caption preprocessing
     captions_tokens = descriptions_df['caption'].apply(
         lambda r: preprocess_text(r, model, stop_words))
-    if has_object:
-        categories_tokens = descriptions_df['object'].apply(
-            lambda r: preprocess_text(r, model, stop_words, True))
+    categories_tokens = descriptions_df['object'].apply(
+        lambda r: preprocess_text(r, model, stop_words, True))
 
     # Caption embedding
     descriptions_df['e_caption'] = captions_tokens.apply(lambda r: embed_text(r, model))
-    if has_object:
-        descriptions_df['e_object'] = categories_tokens.apply(lambda r: embed_text(r, model))
-        descriptions_df['e_combined'] = (captions_tokens + categories_tokens).apply(
-            lambda r: embed_text(r, model))
+    descriptions_df['e_object'] = categories_tokens.apply(lambda r: embed_text(r, model))
+    descriptions_df['e_combined'] = (captions_tokens + categories_tokens).apply(
+        lambda r: embed_text(r, model))
 
-        return descriptions_df.drop(['caption', 'object'], axis=1)
-    return descriptions_df.drop(['caption'], axis=1)
+    return descriptions_df.drop(['caption', 'object'], axis=1)
 
 
 def embed_data_senses(model, input_df):
@@ -174,7 +164,19 @@ def spell_fix(filepath, typos):
         file.write(data)
 
 
-def check_synset_ancestors(word, model, stop_words):
+def check_synset_ancestors(word, model):
+    """
+    Return the first ancestor in the WordNet synset hierarchy of the
+    target word which is in the model dictionary.
+
+    Args:
+        word: target word to encode whose ancestor must be extracted
+        model: embedding model
+
+    Returns:
+        An ancestor of the target word which is available in the
+        dictionary
+    """
     synset = wn.synsets(word)
     if synset == []:
         return ""
@@ -196,7 +198,7 @@ def check_synset_ancestors(word, model, stop_words):
 
 def main():
     """
-    Load data, spellcheck and embed
+    Load data, spellcheck and embed.
     """
     print('Loading word2vec Network...')
     model = api.load('word2vec-google-news-300')
@@ -206,7 +208,7 @@ def main():
     spell_fix('generated/verse_annotations.csv', TYPOS)
     print('Embedding VerSe annotations...')
     verse_embedding = embed_data_descriptions(
-        model, pd.read_csv('generated/_verse_annotations.csv'), True, False)
+        model, pd.read_csv('generated/_verse_annotations.csv'))
     print('Writing Data...')
     verse_embedding.to_pickle('generated/verse_embedding.pkl')
     del verse_embedding

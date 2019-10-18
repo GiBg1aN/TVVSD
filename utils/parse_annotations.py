@@ -1,4 +1,5 @@
-"""
+"""Parse Annotations
+
 Read COCO (JSON) and TUHOI (CSV) annotations files and combine them in
 a single CSV.
 """
@@ -39,7 +40,7 @@ def parse_tuhoi(path):
 
 def parse_coco(path):
     """
-    Convert COCO annotations from JSON to DataFrame
+    Convert COCO annotations from JSON to DataFrame.
 
     Args:
         path: COCO annotations file path
@@ -52,29 +53,24 @@ def parse_coco(path):
     return pd.DataFrame(coco_dictionary.get('annotations'))
 
 
-def parse_flickr(path):
-    flickr = pd.read_csv(path, sep='\t', names=['image_id','caption'])
-    flickr['image_id'] = flickr['image_id'].apply(lambda s: s.split('#')[0])
-    return flickr
-
-
 def append_row(caption_df, category_df, img_id, id_prefix, new_df):
     """
     Extract the caption and the category related to 'img_id' from
     'caption_df' and append them as a row to 'new_df'.
 
     Args:
-        caption_df: The caption dataset
-        category_df: The category dataset
+        caption_df: The caption dataframe
+        category_df: The category dataframe
         img_id: The id of image that will be appended
-        id_prefix: The prefix the will be prepended to img_id
+        id_prefix: The prefix that will be prepended to img_id
+            (to discriminate COCO train/val)
         new_df: The Dataframe where the row will be appended
 
     Returns:
         'new_df' with 'img_id' row appended
     """
     row = caption_df[caption_df['image_id'] == img_id]
-    if category_df is None:
+    if category_df is None:  # For TUHOI
         category_row = row.object
     else:
         category_row = category_df[category_df.index == img_id].iloc[0]
@@ -90,12 +86,18 @@ def append_row(caption_df, category_df, img_id, id_prefix, new_df):
 
 def parse_gold():
     """
-    Read GOLD annotations and combine them.
+    Read GOLD annotations and combine them. The resulting dataframe
+    is written to 'generated/verse_annotations.csv'.
+
+    COCO files 'captions_train2014.json', 'captions_val2014.json',
+    'instances_train2014.json', 'instances_val2014.json' must be
+    located in 'data/annotations/COCO' directory. TUHOI file
+    'crowdflower_result.csv' must be placed in the directory
+    'data/annotations/TUHOI'. Category file 'coco-labels-paper.txt'
+    must be placed in 'data/labels' folder.
+    Labels file '3.5k_verse_gold_image_sense_annotations.csv' must be
+    placed in the directory 'data/labels'.
     """
-    print('Parsing Flickr30k...')
-    flickr_df = parse_flickr('data/annotations/Flickr30k/flickr30k_captions.token')
-    print('Writing...')
-    flickr_df.to_csv('generated/flickr30k_annotations.csv', index=False)
     print('Parsing COCO...')
     caption_train_df = parse_coco('data/annotations/COCO/captions_train2014.json')
     caption_val_df = parse_coco('data/annotations/COCO/captions_val2014.json')
@@ -103,6 +105,7 @@ def parse_gold():
     object_val_df = parse_coco('data/annotations/COCO/instances_val2014.json')
 
     categories_labels = [line.rstrip('\n') for line in open('data/labels/coco-labels-paper.txt')]
+    #  Category IDs are not aligned with the extended COCO version.
     categories_labels = {str(i + 1): categories_labels[i] for i in range(len(categories_labels))}
 
     object_train_df['category_id'] = object_train_df['category_id'].apply(
@@ -148,6 +151,14 @@ def parse_gold():
 
 
 def parse_pred():
+    """
+    Read PRED annotations and combine them. The resulting dataframe
+    is written to 'generated/pred_verse_annotations.csv'.
+
+    The files generated with NeuralTalk: 'neuraltalk_run1.json',
+    'neuraltalk_run2.json', 'neuraltalk_run3.json' must be placed in
+    'pred' folder.
+    """
     pred_captions_1 = json.load(open('pred/neuraltalk_run1.json'))
     pred_captions_2 = json.load(open('pred/neuraltalk_run2.json'))
     pred_captions_3 = json.load(open('pred/neuraltalk_run3.json'))
@@ -169,3 +180,4 @@ def parse_pred():
 
 if __name__ == '__main__':
     parse_gold()
+    parse_pred()

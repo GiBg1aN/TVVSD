@@ -1,3 +1,7 @@
+"""Extract Features
+
+Use VGG16 to extract image features.
+"""
 import glob
 import json
 import os
@@ -17,12 +21,6 @@ import torchvision.transforms as transforms
 
 from tqdm import tqdm
 from visual_verb_disambiguation import filter_image_name
-
-
-_nsre = re.compile('([0-9]+)')
-def natural_sort_key(s):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
 
 
 class Identity(nn.Module):
@@ -86,9 +84,17 @@ def image_preprocessing(path_img):
 
 
 def encode_verse_images(vgg16):
+    """
+    Extract VGG16 FC-7 layer features (4096-dimensional vector) and
+    write to a DataFrame.
+
+    Args:
+        vgg16: the pretrained NN
+    """
     images_df = pd.DataFrame(columns=['e_image'])
     captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
     captions_sense_labels = captions_sense_labels[['image', 'COCO/TUHOI']].drop_duplicates()
+
     for _, row in tqdm(enumerate(captions_sense_labels.itertuples())):
         dataset_folder = row[-1]
         path_img = 'data/images/' + dataset_folder + '/' + row.image
@@ -102,60 +108,17 @@ def encode_verse_images(vgg16):
     images_df.to_pickle('generated/images_features.pkl')
 
 
-def encode_verse_senses(vgg16, device):
-    queries = pd.read_csv('data/labels/sense_specific_search_engine_queries.tsv', sep='\t', dtype={'sense_num': str})
-    queries['sense_num'] = queries['sense_num'].apply(lambda x: x.replace('.', '_'))
-    queries['queries'] = queries['queries'].apply(lambda s: s.split(','))
-
-    DOWNLOAD_FOLDER = 'bing_download_azure/'
-    enconding_folder = 'sense_features/'
-
-    for i, row in tqdm(enumerate(queries.itertuples())):
-        verb = getattr(row, 'verb')
-        sense_num = getattr(row, 'sense_num')
-        sense_directory = DOWNLOAD_FOLDER + verb + '_' + sense_num + '/'
-
-        queries_directories = glob.glob(sense_directory + '/*')
-        queries_directories.sort(key=natural_sort_key)
-        features_list = []
-        image_names_list = []
-
-        for query_directory in queries_directories:
-            vectors = None
-            files = glob.glob(query_directory + '/*')
-            files.sort(key=natural_sort_key)  # Sort by-name to take the first n images
-
-            for image_path in files:
-                try:
-                    tensor_img = image_preprocessing(image_path).to(device)
-                    image_names_list.append(image_path.split('/')[-1])
-                    prediction = vgg16(tensor_img)  # Returns a Tensor of shape (batch, num class labels)
-                    encoded_tensor = prediction.data
-
-                    if vectors is None:
-                        vectors = encoded_tensor
-                    else:
-                        vectors = torch.cat([vectors, encoded_tensor])
-                except ValueError:
-                    pass
-                    #print("invalid image: %s" % image_path)
-                except OSError:
-                    pass
-                    #print("invalid image: %s" % image_path)
-                except AttributeError:
-                    pass
-                    #print("invalid image: %s" % image_path)
-                    
-                    
-            if vectors is not None:
-                features_list.append(vectors.cpu().numpy())
-
-        filepath = enconding_folder + verb + '_' + sense_num + '.npz'
-        print('Writing %s...' % filepath)
-        np.savez(filepath, features=features_list, names=image_names_list)
-
-
 def object_detection(vgg16, cuda):
+    """
+    Return the object labels extracted with VGG16 wich have a
+    detection threshold g.e. 20%. Labels files 'labels.json' and
+    '3.5k_verse_gold_image_sense_annotations.csv' must be located
+    in 'data/labels' folder.
+
+    Args:
+        vgg16: the pretrained NN
+        cuda: GPU device
+    """
     images_df = pd.DataFrame(columns=['e_image'])
     captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
     captions_sense_labels = captions_sense_labels[['image', 'COCO/TUHOI']].drop_duplicates()
@@ -173,11 +136,11 @@ def object_detection(vgg16, cuda):
         prediction = vgg16(tensor_img)  # Returns a Tensor of shape (batch, num class labels)
         encoded_tensor = prediction.data.detach().cpu().numpy()
         v = np.exp(encoded_tensor)
-        v = v/ v.sum()
+        v = v / v.sum()
         #v = encoded_tensor.detach().cpu().numpy()
         #scaler.fit(v.T)
         #v = scaler.transform(v.T)
-        vid = np.where(v.flatten()>0.7)[0]
+        vid = np.where(v.flatten() > 0.7)[0]
         if len(vid) == 0:
             vid = [encoded_tensor.argmax()]
         object_labels = list(map(lambda x: labels[x], vid))
@@ -200,8 +163,7 @@ def main():
     vgg16.classifier = nn.Sequential(*class_layers)
 
     encode_verse_images(vgg16)
-    encode_verse_senses(vgg16, cuda)
- 
+
 
 if __name__ == '__main__':
     main()
