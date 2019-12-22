@@ -50,7 +50,7 @@ def filter_senses(senses, sense_labels):
     return new_senses
 
 
-def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=False):
+def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=False, alpha_min=0.1, alpha_max=0.5, alpha_step=0.1):
     """
     Run semi-supervised GTG experiments, they are run with an increased number
     of elements per label (from 1 to 13). Each experiment is replicated 15
@@ -71,32 +71,34 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=Fa
 
     # Uniform distribution on senses related to the verb (Semi-supervised)
     seeds = [73, 37, 29, 30124, 30141, 54321, 1001001, 2051995, 579328629, 1337, 7331, 1221, 111, 99, 666]
-    if not prior:
-        strategies = strategy_space(sense_labels, senses)
+    # if not prior:
+        # strategies = strategy_space(sense_labels, senses)
 
     for labels_per_class in range(1, 14):
         print('Min labels per class: %s' % labels_per_class)
         for representation_type in full_features.columns.to_list():
             nodes = generate_nodes(full_features, sense_labels, representation_type)
             affinity = affinity_matrix(nodes)
-            if prior:
-                strategies = prior_knowledge(y, nodes, senses)
-            print(representation_type)
-            for seed in seeds:
-                print('Seed: %s' % seed)
-                labels_index = labelling(senses, sense_labels, seed, labels_per_class)
-                motions, non_motions = gtg(y, affinity, labels_index, strategies)
+            # if prior:
+                # strategies = prior_knowledge(y, nodes, senses)
+            for alpha in np.arange(alpha_min, alpha_max + alpha_step, alpha_step):
+                strategies = first_sense_strategy_space(sense_labels, senses, alpha)#strategy_space(sense_labels, senses)
+                print(representation_type, 'alpha:', alpha)
+                for seed in seeds:
+                    print('Seed: %s' % seed)
+                    labels_index = labelling(senses, sense_labels, seed, labels_per_class)
+                    motions, non_motions = gtg(y, affinity, labels_index, strategies)
 
-                print("Motion: %s" % str(motions * 100))
-                print("Non-motion: %s" % str(non_motions * 100))
+                    print("Motion: %s" % str(motions * 100))
+                    print("Non-motion: %s" % str(non_motions * 100))
 
-                with open('experiments.csv', 'a+') as exps: # labels_per_class, verb_type, column, accuracy
-                    exps.write(str(labels_per_class) + ',' + 'motions,' + representation_type + ',' + str(motions) + '\n')
-                    exps.write(str(labels_per_class) + ',' + 'non_motions,' + representation_type + ',' + str(non_motions) + '\n')
-                    exps.close()
+                    with open('experiments.csv', 'a+') as exps: # labels_per_class, verb_type, column, accuracy
+                        exps.write(str(labels_per_class) + ',' + str(alpha) + ',' + 'motions,' + representation_type + ',' + str(motions) + '\n')
+                        exps.write(str(labels_per_class) + ',' + str(alpha) + ',' + 'non_motions,' + representation_type + ',' + str(non_motions) + '\n')
+                        exps.close()
 
 
-def run_experiment_unsupervised(senses, sense_labels, full_features):
+def run_experiment_unsupervised(senses, sense_labels, full_features, alpha_min=0.1, alpha_max=0.5, alpha_step=0.1):
     """
     Run totally unsupervised GTG experiments.
 
@@ -113,36 +115,45 @@ def run_experiment_unsupervised(senses, sense_labels, full_features):
     for representation_type in full_features.columns.to_list():
         nodes = generate_nodes(full_features, sense_labels, representation_type)
         affinity = affinity_matrix(nodes)
-        strategies = strategy_space(sense_labels, senses)
-        print(representation_type)
-        labels_index = []
-        motions, non_motions = gtg(y, affinity, labels_index, strategies)
+        for alpha in np.arange(alpha_min, alpha_max + alpha_step, alpha_step):
+            strategies = first_sense_strategy_space(sense_labels, senses, alpha)#strategy_space(sense_labels, senses)
+            print(representation_type, 'alpha:', alpha)
+            labels_index = []
+            motions, non_motions = gtg(y, affinity, labels_index, strategies)
 
-        print("Motion: %s" % str(motions * 100))
-        print("Non-motion: %s" % str(non_motions * 100))
+            print("Motion: %s" % str(motions * 100))
+            print("Non-motion: %s" % str(non_motions * 100))
 
-        with open('experiments.csv', 'a+') as exps: # labels_per_class, verb_type, column, accuracy
-            exps.write(str(0) + ',' + 'motions,' + representation_type + ',' + str(motions) + '\n')
-            exps.write(str(0) + ',' + 'non_motions,' + representation_type + ',' + str(non_motions) + '\n')
-            exps.close()
+            with open('experiments_unsup.csv', 'a+') as exps: # alpha, verb_type, column, accuracy
+                exps.write(str(alpha) + ',' + 'motions,' + representation_type + ',' + str(motions) + '\n')
+                exps.write(str(alpha) + ',' + 'non_motions,' + representation_type + ',' + str(non_motions) + '\n')
+                exps.close()
 
 
 def main():
     """ Run multiple GTG experiments. """
+    use_gold = True
+
     # File reading and preprocessing
-    images_features = pd.read_pickle('generated/gold/images_features_new.pkl')
-    images_features['e_image'] = images_features['e_image'].apply(lambda x: x / np.linalg.norm(x, ord=2))
-    embedded_annotations = pd.read_pickle('generated/pred/pred_verse_embedding.pkl')
+    if use_gold:
+        images_features = pd.read_pickle('generated/gold/images_features_nametrim.pkl')
+        embedded_annotations = pd.read_pickle('generated/gold/verse_embedding.pkl')
+    else:
+        images_features = pd.read_pickle('generated/pred/images_features_new.pkl')
+        embedded_annotations = pd.read_pickle('generated/pred/pred_verse_embedding.pkl')
+
+    images_features['e_image'] = images_features['e_image'].apply(
+        lambda x: x / np.linalg.norm(x, ord=2))
+
     full_features = combine_data(embedded_annotations, images_features)
     # embedded_senses = pd.read_pickle('generated/senses_embedding.pkl')
     senses = pd.read_csv('data/labels/verse_visualness_labels.tsv',
                          sep='\t', dtype={'sense_num': str})
-    #sense_labels = pd.read_csv('generated/pami_tab5_sense_labels.csv',
-    #                           dtype={'sense_chosen': str})
     sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv',
                                dtype={'sense_chosen': str})
 
-    # sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
+    if use_gold:
+        sense_labels['image'] = sense_labels['image'].apply(filter_image_name)
     sense_labels = sense_labels[sense_labels['sense_chosen'] != '-1']  # Drop unclassifiable elems
     # senses.dropna(inplace=True)
     sense_labels.reset_index(inplace=True, drop=True)
@@ -152,8 +163,8 @@ def main():
 
 
     # RUNS
-    # run_experiment_semi_supervised(senses, sense_labels, full_features, False)
-    run_experiment_unsupervised(senses, sense_labels, full_features)
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False)
+    # run_experiment_unsupervised(senses, sense_labels, full_features, 0.1, 0.5, 0.1)
     exit()
 
 

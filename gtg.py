@@ -79,6 +79,39 @@ def strategy_space(sense_labels, senses):
     return strategies
 
 
+def first_sense_strategy_space(sense_labels, senses, alpha=0.5):
+    """
+    TODO
+    Generate the strategy space of the game, where rows are
+    mixed_strategies (images representations) and columns are pure
+    strategies (verb senses). Each cell is uniformly initialiased, the
+    cells for which verb and sense intersection is null are set to zero.
+
+    Args:
+        sense_labels: A dataframe containing the correct sense for each
+            pair (image, verb).
+        senses: A dataframe of verb senses
+
+    Returns:
+        An NxC matrix containing row-wise probability distributions
+    """
+    n_points = len(sense_labels)
+    n_senses = len(senses)
+    strategies = np.zeros((n_points, n_senses))  # Strategy space
+
+    for i, row in enumerate(sense_labels.itertuples()):  # Row: index of image images_captions table
+        verb = getattr(row, 'lemma')
+        filtered_senses = senses.query('lemma == @verb')
+
+        for j in range(len(filtered_senses)):
+            col = filtered_senses.iloc[j].name  # Columns: index of sense in pandas dataframe
+            if j == 0:
+                strategies[i, col] = alpha
+            else:
+                strategies[i, col] = (1 - alpha) / (len(filtered_senses) - 1)
+    return strategies
+
+
 def mfs_heuristic_strategies(sense_labels, senses):
     """
     Initialise the strategy space according to the Most Frequent Sense
@@ -222,7 +255,7 @@ def labelling(senses, sense_labels, seed, elements_per_label=1):
     return np.array(labeled_indexes)
 
 
-def replicator_dynamics(W, strategies, max_iter=10):
+def replicator_dynamics(W, strategies, max_iter=100):
     """
     Compute Nash equilibria using Replicator Dynamics.
 
