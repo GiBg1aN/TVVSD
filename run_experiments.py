@@ -164,8 +164,8 @@ def main():
 
 
     # RUNS
-    run_experiment_semi_supervised(senses, sense_labels, full_features, False, out_fn='experiments.csv')
-    run_experiment_semi_supervised(senses, sense_labels, full_features, False, use_all_senses=True, out_fn='experiments_all_senses.csv')
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False, alpha_max=1., out_fn='experiments.csv')
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False, alpha_max=1., use_all_senses=True, out_fn='experiments_all_senses.csv')
     # run_experiment_unsupervised(senses, sense_labels, full_features, 0.1, 0.5, 0.1)
     exit()
 
