@@ -76,7 +76,7 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=Fa
 
     for seed in seeds:
         print('Seed: %s' % seed)
-        for labels_per_class in range(1, 14):
+        for labels_per_class in range(0, 14):
             print('Min labels per class: %s' % labels_per_class)
             for representation_type in full_features.columns.to_list():
                 nodes = generate_nodes(full_features, sense_labels, representation_type)
@@ -164,8 +164,8 @@ def main():
 
 
     # RUNS
-    run_experiment_semi_supervised(senses, sense_labels, full_features, False, alpha_max=1., out_fn='experiments.csv')
-    run_experiment_semi_supervised(senses, sense_labels, full_features, False, alpha_max=1., use_all_senses=True, out_fn='experiments_all_senses.csv')
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False, alpha_min=0, alpha_max=1., out_fn='experiments.csv')
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False, alpha_min=0, alpha_max=1., use_all_senses=True, out_fn='experiments_all_senses.csv')
     # run_experiment_unsupervised(senses, sense_labels, full_features, 0.1, 0.5, 0.1)
     exit()
 
