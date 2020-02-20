@@ -50,7 +50,7 @@ def filter_senses(senses, sense_labels):
     return new_senses
 
 
-def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=False, alpha_min=0.1, alpha_max=0.5, alpha_step=0.1):
+def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=False, alpha_min=0.1, alpha_max=0.5, alpha_step=0.1, use_all_senses=False, out_fn='experiments.csv'):
     """
     Run semi-supervised GTG experiments, they are run with an increased number
     of elements per label (from 1 to 13). Each experiment is replicated 15
@@ -74,25 +74,26 @@ def run_experiment_semi_supervised(senses, sense_labels, full_features, prior=Fa
     # if not prior:
         # strategies = strategy_space(sense_labels, senses)
 
-    for labels_per_class in range(1, 14):
-        print('Min labels per class: %s' % labels_per_class)
-        for representation_type in full_features.columns.to_list():
-            nodes = generate_nodes(full_features, sense_labels, representation_type)
-            affinity = affinity_matrix(nodes)
-            # if prior:
-                # strategies = prior_knowledge(y, nodes, senses)
-            for alpha in np.arange(alpha_min, alpha_max + alpha_step, alpha_step):
-                strategies = first_sense_strategy_space(sense_labels, senses, alpha)#strategy_space(sense_labels, senses)
-                print(representation_type, 'alpha:', alpha)
-                for seed in seeds:
-                    print('Seed: %s' % seed)
+    for seed in seeds:
+        print('Seed: %s' % seed)
+        for labels_per_class in range(1, 14):
+            print('Min labels per class: %s' % labels_per_class)
+            for representation_type in full_features.columns.to_list():
+                nodes = generate_nodes(full_features, sense_labels, representation_type)
+                affinity = affinity_matrix(nodes)
+                # if prior:
+                    # strategies = prior_knowledge(y, nodes, senses)
+                for alpha in np.arange(alpha_min, alpha_max + alpha_step, alpha_step):
+                    strategies = first_sense_strategy_space(sense_labels, senses, alpha, use_all_senses=use_all_senses)#strategy_space(sense_labels, senses)
+                    print(representation_type, 'alpha:', alpha)
+
                     labels_index = labelling(senses, sense_labels, seed, labels_per_class)
                     motions, non_motions = gtg(y, affinity, labels_index, strategies)
 
                     print("Motion: %s" % str(motions * 100))
                     print("Non-motion: %s" % str(non_motions * 100))
 
-                    with open('experiments.csv', 'a+') as exps: # labels_per_class, verb_type, column, accuracy
+                    with open(out_fn, 'a+') as exps: # labels_per_class, verb_type, column, accuracy
                         exps.write(str(labels_per_class) + ',' + str(alpha) + ',' + 'motions,' + representation_type + ',' + str(motions) + '\n')
                         exps.write(str(labels_per_class) + ',' + str(alpha) + ',' + 'non_motions,' + representation_type + ',' + str(non_motions) + '\n')
                         exps.close()
@@ -163,7 +164,8 @@ def main():
 
 
     # RUNS
-    run_experiment_semi_supervised(senses, sense_labels, full_features, False)
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False, out_fn='experiments.csv')
+    run_experiment_semi_supervised(senses, sense_labels, full_features, False, use_all_senses=True, out_fn='experiments_all_senses.csv')
     # run_experiment_unsupervised(senses, sense_labels, full_features, 0.1, 0.5, 0.1)
     exit()
 

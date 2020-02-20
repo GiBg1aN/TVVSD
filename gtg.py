@@ -50,7 +50,7 @@ def affinity_matrix(elements):
     return affinity
 
 
-def strategy_space(sense_labels, senses):
+def strategy_space(sense_labels, senses, all_senses=False):
     """
     Generate the strategy space of the game, where rows are
     mixed_strategies (images representations) and columns are pure
@@ -71,7 +71,11 @@ def strategy_space(sense_labels, senses):
 
     for i, row in enumerate(sense_labels.itertuples()):  # Row: index of image images_captions table
         verb = getattr(row, 'lemma')
-        filtered_senses = senses.query('lemma == @verb')
+
+        if all_senses:
+            filtered_senses = senses
+        else:
+            filtered_senses = senses.query('lemma == @verb')
 
         for j in range(len(filtered_senses)):
             col = filtered_senses.iloc[j].name  # Columns: index of sense in pandas dataframe
@@ -79,7 +83,7 @@ def strategy_space(sense_labels, senses):
     return strategies
 
 
-def first_sense_strategy_space(sense_labels, senses, alpha=0.5):
+def first_sense_strategy_space(sense_labels, senses, alpha=0.5, use_all_senses=False):
     """
     TODO
     Generate the strategy space of the game, where rows are
@@ -101,7 +105,10 @@ def first_sense_strategy_space(sense_labels, senses, alpha=0.5):
 
     for i, row in enumerate(sense_labels.itertuples()):  # Row: index of image images_captions table
         verb = getattr(row, 'lemma')
-        filtered_senses = senses.query('lemma == @verb')
+        if use_all_senses:
+            filtered_senses = senses
+        else:
+            filtered_senses = senses.query('lemma == @verb')
 
         for j in range(len(filtered_senses)):
             col = filtered_senses.iloc[j].name  # Columns: index of sense in pandas dataframe
