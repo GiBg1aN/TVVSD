@@ -20,7 +20,7 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 
 from tqdm import tqdm
-from visual_verb_disambiguation import filter_image_name
+from ..utils import filter_image_name
 
 
 class Identity(nn.Module):
@@ -92,7 +92,7 @@ def encode_verse_images(vgg16):
         vgg16: the pretrained NN
     """
     images_df = pd.DataFrame(columns=['e_image'])
-    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
+    captions_sense_labels = pd.read_csv('../data/labels/3.5k_verse_gold_image_sense_annotations.csv')
     captions_sense_labels = captions_sense_labels[['image', 'COCO/TUHOI']].drop_duplicates()
 
     for _, row in tqdm(enumerate(captions_sense_labels.itertuples())):
@@ -120,7 +120,7 @@ def object_detection(vgg16, cuda):
         cuda: GPU device
     """
     images_df = pd.DataFrame(columns=['e_image'])
-    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv')
+    captions_sense_labels = pd.read_csv('../data/labels/3.5k_verse_gold_image_sense_annotations.csv')
     captions_sense_labels = captions_sense_labels[['image', 'COCO/TUHOI']].drop_duplicates()
 
     labels = json.load(open('data/labels/labels.json'))

@@ -5,29 +5,7 @@ method.
 import numpy as np
 import pandas as pd
 
-
-def filter_image_name(img_name):
-    """
-    Remove image name prefixes.
-
-    Args:
-        img_name: image name in the form PREFIX_XXXX.jpeg
-
-    Returns:
-        The XXXX image identifier
-
-    Raises:
-        ValueError: when the image prefix is not known
-    """
-    train_prefix = 'COCO_train2014_'
-    val_prefix = 'COCO_val2014_'
-    if img_name.startswith(train_prefix):
-        stripped_zeros = train_prefix + str(int(img_name[len(train_prefix):-4]))
-    elif img_name.startswith(val_prefix):
-        stripped_zeros = val_prefix + str(int(img_name[len(val_prefix):-4]))
-    else:
-        stripped_zeros = img_name
-    return stripped_zeros.split('.')[0]
+from utils import filter_image_name
 
 
 def simple_disambiguation(images, senses, labels, image_column, verb_types):
@@ -93,7 +71,7 @@ def main():
     embedded_captions = pd.read_pickle('generated/verse_embedding.pkl')
     # embedded_captions = embedded_captions.set_index('image_id')
     embedded_senses = pd.read_pickle('generated/senses_embedding.pkl')
-    captions_sense_labels = pd.read_csv('data/labels/3.5k_verse_gold_image_sense_annotations.csv',
+    captions_sense_labels = pd.read_csv('../data/labels/3.5k_verse_gold_image_sense_annotations.csv',
                                         dtype={'sense_chosen': str})
     captions_sense_labels['image'] = captions_sense_labels['image'].apply(filter_image_name)
     # Drop unclassifiable elems
@@ -102,10 +80,10 @@ def main():
 
     verb_types = {}
 
-    with open('data/labels/motion_verbs.csv') as motion_verbs:
+    with open('../data/labels/motion_verbs.csv') as motion_verbs:
         verb_types['motion'] = [line.rstrip('\n') for line in motion_verbs]
 
-    with open('data/labels/non_motion_verbs.csv') as non_motion_verbs:
+    with open('../data/labels/non_motion_verbs.csv') as non_motion_verbs:
         verb_types['non_motion'] = [line.rstrip('\n') for line in non_motion_verbs]
 
     for representation_type in embedded_captions.columns.to_list():
