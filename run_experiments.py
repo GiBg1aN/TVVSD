@@ -1,12 +1,13 @@
-from typing import Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
 
 from gtg import gtg, labelling, strategy_space, one_hot, generate_nodes, affinity_matrix, \
     first_sense_strategy_space, mfs_heuristic_strategies
-from .utils import filter_image_name, combine_data
+from utils import filter_image_name, combine_data
 
+import argparse
 
 def load_data(gold: bool) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
@@ -41,8 +42,8 @@ def load_data(gold: bool) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
 
 def infer_senses(ground_truth: pd.DataFrame, affinity: np.ndarray, strategies: np.ndarray, senses: pd.DataFrame,
-                 sense_labels: pd.DataFrame, seed: int, labels_per_class: int, out_fn: str, feature_type: str,
-                 alpha: Optional[float] = None) -> None:
+                 sense_labels: pd.DataFrame, seed: int, labels_per_class: int, feature_type: str, out_fn: str,
+                 alpha: float = -1) -> None:
     """
     Run a single GTG experiment.
 
@@ -59,8 +60,8 @@ def infer_senses(ground_truth: pd.DataFrame, affinity: np.ndarray, strategies: n
     labels_index = labelling(senses, sense_labels, seed, labels_per_class)
     motions_accuracy, non_motions_accuracy = gtg(ground_truth, affinity, labels_index, strategies)
 
-    print('\t\tMotion: {:.3f}'.format(motions_accuracy * 100))
-    print('\t\tNon-motion: {:.3f}'.format(non_motions_accuracy * 100))
+    print('\tMotion: {:.3f}'.format(motions_accuracy * 100))
+    print('\tNon-motion: {:.3f}'.format(non_motions_accuracy * 100))
 
     with open(out_fn, 'a+') as out_stream:
         output_str = '{:d}, {:.5f}, {:s}, {:s}, {:.4f}\n'
@@ -69,7 +70,7 @@ def infer_senses(ground_truth: pd.DataFrame, affinity: np.ndarray, strategies: n
         out_stream.close()
 
 
-def run_gtg_experiment(senses: pd.DataFrame, sense_labels: pd.DataFrame, full_features: pd.DataFrame,
+def run_gtg_experiment(senses: pd.DataFrame, sense_labels: pd.DataFrame, full_features: pd.DataFrame, max_labels: int,
                        all_senses: bool = False, fs_init: bool = False, out_fn: str = 'experiments.csv',
                        alpha_min: float = 0.1, alpha_max: float = 1, alpha_step: float = 0.1) -> None:
     """
@@ -82,8 +83,12 @@ def run_gtg_experiment(senses: pd.DataFrame, sense_labels: pd.DataFrame, full_fe
         senses: A dataframe of verb senses
         sense_labels: A dataframe containing the correct sense for each
             pair (image, verb).
-        full_features: A dataframe containing a different feature representation
-            for each column. Each row is a data point.
+        full_features: A dataframe containing a different feature
+            representation for each column. Each row is a data point.
+        max_labels: the maximum number of labeled data-points to
+            be sampled in each class, the first run will use 1 single
+            labeled data-point per sense. This number will increase
+            after each run up to max_labels.
         out_fn: path of output file containing statistics.
         all_senses: if True, the sense probability of a data-point is
             distributed on all senses, otherwise they are restricted to
@@ -109,8 +114,8 @@ def run_gtg_experiment(senses: pd.DataFrame, sense_labels: pd.DataFrame, full_fe
     seeds = [73, 37, 29, 30124, 30141, 54321, 1001001, 2051995, 579328629, 1337, 7331, 1221, 111, 99, 666]
     strategies = strategy_space(sense_labels, senses, all_senses)
     for seed in seeds:
-        print('Seed: {:d}'.format(seed))
-        for labels_per_class in range(1, 14):
+        print('\nSeed: {:d}'.format(seed))
+        for labels_per_class in range(1, max_labels):
             print('Min labels per class: {:d}'.format(labels_per_class))
             for feature_type in full_features.columns.to_list():
                 nodes = generate_nodes(full_features, sense_labels, feature_type)
@@ -123,7 +128,7 @@ def run_gtg_experiment(senses: pd.DataFrame, sense_labels: pd.DataFrame, full_fe
                         infer_senses(ground_truth, affinity, strategies, senses, sense_labels,
                                      seed, labels_per_class, feature_type, out_fn)
                 else:
-                    print('\t{:s}'.format(feature_type))
+                    print('{:s}'.format(feature_type))
                     infer_senses(ground_truth, affinity, strategies, senses, sense_labels,
                                  seed, labels_per_class, feature_type, out_fn)
 
@@ -158,11 +163,24 @@ def most_frequent_sense_heuristic(senses: pd.DataFrame, sense_labels: pd.DataFra
 
 def main():
     """ Run visual verb disambiguation experiments. """
-    use_gold = True
-    use_all_senses = False
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-G', '--gold_captions', action='store_const', const='gold', default='gold', dest='captions',
+                       help='Use GOLD captions from COCO.')
+    group.add_argument('-P', '--pred_captions', action='store_const', const='pred', dest='captions',
+                       help='use PRED captions extracted with NeuralBabyTalk.')
+    parser.add_argument('-m', '--max_labels', type=int, default=20,
+                        help='The maximum number of labeled data-points to use for each sense.')
+    parser.add_argument('-a', '--all_senses', action='store_true',
+                        help='Ignore input verb, run inference on the senses of all verbs for each data point.')
+
+    args = parser.parse_args()
+    use_gold = args.captions == 'gold'
+    use_all_senses = args.all_senses
+    max_labels = args.max_labels
 
     features, senses, sense_labels = load_data(use_gold)
-    run_gtg_experiment(senses, sense_labels, features, use_all_senses)
+    run_gtg_experiment(senses, sense_labels, features, max_labels, use_all_senses)
 
 
 if __name__ == '__main__':
