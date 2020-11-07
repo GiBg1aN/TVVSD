@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import torch
-from visual_verb_disambiguation import filter_image_name
 
 
 VERB_TYPES = {}
@@ -13,29 +12,18 @@ with open('data/labels/non_motion_verbs.csv') as non_motion_verbs:
     VERB_TYPES['nonmotion'] = [line.rstrip('\n') for line in non_motion_verbs]
  
 
-def sparsify(M):
-    idx = np.argsort(-M, axis=1)[:,:7]
-    W = np.zeros(M.shape)
-    for i in range(idx.shape[0]):
-       idx_i = idx[i,:]
-       W[i,idx_i]= M[i,idx_i] 
-    W = (W + W.transpose())/2
-
-    return W
-
-
-def affinity_matrix(elements):
+def affinity_matrix(elements: np.ndarray) -> np.ndarray:
     """
-    Compute parwise similarities of a given array; such matrix is the
+    Compute pair-wise similarity matrix from an array; It represents the
     graph weight matrix W.
 
-    Affinity is computed through cosine similarity.
+    The affinity measure is the cosine similarity.
 
     Args:
-        elements: A 1D-vector of size n
+        elements: A 1D-vector of size n.
 
     Returns:
-        An NxN symmetric matrix
+        An NxN symmetric matrix.
     """
     n_points = len(elements)
     affinity = np.zeros((n_points, n_points))  # Affinity matrix
@@ -50,17 +38,20 @@ def affinity_matrix(elements):
     return affinity
 
 
-def strategy_space(sense_labels, senses, all_senses=False):
+def strategy_space(sense_labels: pd.DataFrame, senses: pd.DataFrame, all_senses: bool = False) -> np.ndarray:
     """
     Generate the strategy space of the game, where rows are
     mixed_strategies (images representations) and columns are pure
-    strategies (verb senses). Each cell is uniformly initialiased, the
+    strategies (verb senses). Each cell is uniformly initialised, the
     cells for which verb and sense intersection is null are set to zero.
 
     Args:
         sense_labels: A dataframe containing the correct sense for each
             pair (image, verb).
-        senses: A dataframe of verb senses
+        senses: A dataframe of verb senses.
+        all_senses: if True, the sense probability of a data-point is
+            distributed on all senses, otherwise they are restricted to
+            the ones related to a given verb.
 
     Returns:
         An NxC matrix containing row-wise probability distributions
@@ -83,7 +74,7 @@ def strategy_space(sense_labels, senses, all_senses=False):
     return strategies
 
 
-def first_sense_strategy_space(sense_labels, senses, alpha=0.5, use_all_senses=False):
+def first_sense_strategy_space(sense_labels, senses, alpha, use_all_senses=False):
     """
     TODO
     Generate the strategy space of the game, where rows are
@@ -243,7 +234,7 @@ def labelling(senses, sense_labels, seed, elements_per_label=1):
         seed: A seed for reproducible experiments
 
     Returns:
-        A list of indexes of elements in 'sense_labeles' to label
+        A list of indexes of elements in 'sense_labels' to label
     """
     myseed = np.random.RandomState(seed)
     labeled_indexes = []
@@ -324,7 +315,6 @@ def gtg(y, weights, labeled_senses_idx, strategies, first_sense=False):
                 wrong['nonmotion'] += 1
         else:
             raise ValueError('Unknown verb type')
-
 
     motions = (correct['motion'] / (correct['motion'] + wrong['motion']))
     non_motions = (correct['nonmotion'] / (correct['nonmotion'] + wrong['nonmotion']))

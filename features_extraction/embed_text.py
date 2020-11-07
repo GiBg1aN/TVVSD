@@ -10,7 +10,7 @@ import gensim.downloader as api
 from gensim.utils import simple_preprocess
 from nltk.corpus import wordnet as wn
 from stop_words import get_stop_words
-from typos import TYPOS, TYPOS2
+from features_extraction.typos import TYPOS, TYPOS2
 
 
 def preprocess_text(caption, model, stop_words, word_net_categories=False):
@@ -214,7 +214,7 @@ def main():
     del verse_embedding
 
     print('Spellchecking senses...')
-    spell_fix('data/labels/verse_visualness_labels.tsv', TYPOS2)
+    spell_fix('../data/labels/verse_visualness_labels.tsv', TYPOS2)
     print('Embedding senses...')
     embedded_senses = embed_data_senses(model, pd.read_csv('generated/_verse_visualness_labels.tsv',
                                                            sep='\t', dtype={'sense_num': str}))
