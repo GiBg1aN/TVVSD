@@ -21,8 +21,10 @@ conda env create --file conda_env.yml
 
 ### Required data
 
-The data can be downloaded from the following link <> and must be placed
-in the project folder.
+The data features and required labels can be downloaded from
+[here](https://drive.google.com/file/d/1IxP5G2J3FEKF4GZjpzLAPNY0pToR1mfF/view?usp=sharing).
+The downloaded folder must be called "data" and must be placed into the
+project folder.
 
 ## Experiments
 

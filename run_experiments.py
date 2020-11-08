@@ -22,11 +22,11 @@ def load_data(gold: bool) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
 
     if gold:
-        images_features = pd.read_pickle('generated/gold/images_features_nametrim.pkl')
-        embedded_annotations = pd.read_pickle('generated/gold/verse_embedding.pkl')
+        images_features = pd.read_pickle('data/features/GOLD/images_features_nametrim.pkl')
+        embedded_annotations = pd.read_pickle('data/features/GOLD/verse_embedding.pkl')
     else:
-        images_features = pd.read_pickle('generated/pred/images_features_new.pkl')
-        embedded_annotations = pd.read_pickle('generated/pred/pred_verse_embedding.pkl')
+        images_features = pd.read_pickle('data/features/PRED/images_features_new.pkl')
+        embedded_annotations = pd.read_pickle('data/features/PRED/pred_verse_embedding.pkl')
 
     images_features['e_image'] = images_features['e_image'].apply(lambda x: x / np.linalg.norm(x, ord=2))
     full_features = combine_data(embedded_annotations, images_features)
