@@ -78,3 +78,13 @@ def combine_data(embeddings: pd.DataFrame, images_features: pd.DataFrame) -> pd.
     full_dataframe['concat_image_text'] = full_dataframe.apply(
         lambda r: np.concatenate([r.e_combined, r.e_image.ravel()]), axis=1)
     return full_dataframe.applymap(lambda x: x / np.linalg.norm(x, ord=2))
+
+
+def aggregate_stats(experiments_path):
+    columns = ['labels_per_class', 'alpha', 'verb_type', 'representation_type', 'accuracy']
+    experiments = pd.read_csv(experiments_path, names=columns)[['labels_per_class', 'representation_type', 'verb_type', 'accuracy']]
+    aggregated_data = experiments.groupby(['labels_per_class', 'representation_type', 'verb_type'], as_index=False).agg({'accuracy': ['mean', lambda x: x.std(ddof=0)]})
+    aggregated_data.columns = ['labels_per_class', 'representation_type', 'verb_type', 'mean', 'std']
+    aggregated_data.to_html('results.html')
+    print('Aggregated results written to an HTML file.')
+

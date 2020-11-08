@@ -1,7 +1,8 @@
+from typing import List, Tuple
+
 import numpy as np
 import pandas as pd
 import torch
-
 
 VERB_TYPES = {}
 
@@ -54,7 +55,7 @@ def strategy_space(sense_labels: pd.DataFrame, senses: pd.DataFrame, all_senses:
             the ones related to a given verb.
 
     Returns:
-        An NxC matrix containing row-wise probability distributions
+        An NxC matrix containing row-wise probability distributions.
     """
     n_points = len(sense_labels)
     n_senses = len(senses)
@@ -74,18 +75,24 @@ def strategy_space(sense_labels: pd.DataFrame, senses: pd.DataFrame, all_senses:
     return strategies
 
 
-def first_sense_strategy_space(sense_labels, senses, alpha, use_all_senses=False):
+def first_sense_strategy_space(sense_labels: pd.DataFrame, senses: pd.DataFrame, alpha: float,
+                               all_senses: bool = False) -> np.ndarray:
     """
-    TODO
     Generate the strategy space of the game, where rows are
     mixed_strategies (images representations) and columns are pure
-    strategies (verb senses). Each cell is uniformly initialiased, the
-    cells for which verb and sense intersection is null are set to zero.
+    strategies (verb senses). The first sense probability of each verb
+    is set to an alpha value, whereas the remaining C-1 cells are set to
+    (1-alpha)/C. Cells for which verb and sense intersection is null are
+    set to zero.
 
     Args:
         sense_labels: A dataframe containing the correct sense for each
             pair (image, verb).
-        senses: A dataframe of verb senses
+        senses: A dataframe of verb senses.
+        alpha: Value used to initialise the first sense of each verb.
+        all_senses: if True, the sense probability of a data-point is
+            distributed on all senses, otherwise they are restricted to
+            the ones related to a given verb.
 
     Returns:
         An NxC matrix containing row-wise probability distributions
@@ -96,7 +103,7 @@ def first_sense_strategy_space(sense_labels, senses, alpha, use_all_senses=False
 
     for i, row in enumerate(sense_labels.itertuples()):  # Row: index of image images_captions table
         verb = getattr(row, 'lemma')
-        if use_all_senses:
+        if all_senses:
             filtered_senses = senses
         else:
             filtered_senses = senses.query('lemma == @verb')
@@ -110,18 +117,18 @@ def first_sense_strategy_space(sense_labels, senses, alpha, use_all_senses=False
     return strategies
 
 
-def mfs_heuristic_strategies(sense_labels, senses):
+def mfs_heuristic_strategies(sense_labels: pd.DataFrame, senses: pd.DataFrame) -> np.ndarray:
     """
     Initialise the strategy space according to the Most Frequent Sense
     of each verb sense in 'sense_labels'.
 
     Args:
         sense_labels: A dataframe containing the correct sense for each
-            pair (image, verb)
-        senses: A dataframe of verb senses
+            pair (image, verb).
+        senses: A dataframe of verb senses.
 
     Returns:
-        An NxC matrix composed of one-hot vectors
+        An NxC matrix composed of one-hot vectors.
     """
     n_points = len(sense_labels)
     n_senses = len(senses)
@@ -138,17 +145,17 @@ def mfs_heuristic_strategies(sense_labels, senses):
     return strategies
 
 
-def player_strategy_indexing(verb, senses):
+def player_strategy_indexing(verb: str, senses: pd.DataFrame) -> List[int]:
     """
     Returns a list of indexes to access the senses probabilities
     columns of a given verb.
 
     Args:
-        verb: Verb used as index to get a subrow of the strategy space
-        senses: A dataframe of verb senses
+        verb: Verb used as index to get a sub-row of the strategy space
+        senses: A dataframe of verb senses.
 
     Returns:
-        A list of columns indexes
+        A list of columns indexes.
     """
     column_indexes = senses.query("lemma == @verb").index.tolist()
     return column_indexes
@@ -182,18 +189,18 @@ def prior_knowledge(sense_labels, nodes, senses):
     return strategies
 
 
-def one_hot(senses, verb, sense_num):
+def one_hot(senses: pd.DataFrame, verb: str, sense_num: int) -> np.ndarray:
     """
     Encode a sense as a one-hot vector.
 
     Args:
-        senses: A dataframe of verb senses
-        verb: The verb to access a subset of senses
-        sense: The sense of the verb to map
+        senses: A dataframe of verb senses.
+        verb: The verb to access a subset of senses.
+        sense_num: The sense index of the verb to map.
 
     Returns:
         A one-hot vector with a dimensionality related to the total
-        number of senses
+        number of senses.
     """
     sense = senses.query("lemma == @verb and sense_num == @sense_num").iloc[0]
     vector = np.zeros(len(senses))
@@ -201,42 +208,48 @@ def one_hot(senses, verb, sense_num):
     return vector
 
 
-def generate_nodes(images, labels, representation_type):
+def generate_nodes(data_points: pd.DataFrame, labels: pd.DataFrame, representation_type: str) -> np.ndarray:
     """
-    Generate a unique matrix from a dataframe of vectors.
+    Generate a matrix from a dataframe of vectors.
 
     Args:
-        images: A dataframe of vectors representing images
+        data_points: A dataframe of vectors representing encoded
+            data-points.
         labels: A dataframe containing the correct sense for each
-            pair (image, verb)
-        representation_type: The column name to access in 'images' dataframe
+            pair (image, verb).
+        representation_type: The column name to access in 'images' dataframe.
+
+    Returns:
+        A matrix in which each row represent an encoded feature.
     """
     nodes = None
     for _, row in enumerate(labels.itertuples()):
         img_name = getattr(row, 'image')
         if nodes is None:
-            nodes = images.loc[img_name][representation_type]
+            nodes = data_points.loc[img_name][representation_type]
         else:
-            node = images.loc[img_name][representation_type]
+            node = data_points.loc[img_name][representation_type]
             nodes = np.vstack([nodes, node])
     return nodes
 
 
-def labelling(senses, sense_labels, seed, elements_per_label=1):
+def labelling(senses: pd.DataFrame, sense_labels: pd.DataFrame, seed_number: int, labels_per_sense: int) -> np.ndarray:
     """
     Randomly pick a list of elements to label for a
     Semi-supervised approach. A label for each sense is returned.
 
     Args:
         sense_labels: A dataframe containing the correct sense for each
-            pair (image, verb)
-        senses: A dataframe of verb senses
-        seed: A seed for reproducible experiments
+            pair (image, verb).
+        senses: A dataframe of verb senses.
+        seed_number: A seed for reproducible experiments.
+        labels_per_sense: The maximum number of labelled to use for each
+            class (sense).
 
     Returns:
         A list of indexes of elements in 'sense_labels' to label
     """
-    myseed = np.random.RandomState(seed)
+    random_seed = np.random.RandomState(seed_number)
     labeled_indexes = []
     for _, row in enumerate(senses.itertuples()):
         verb = getattr(row, 'lemma')
@@ -244,53 +257,69 @@ def labelling(senses, sense_labels, seed, elements_per_label=1):
         nodes = sense_labels.query("lemma == @verb and sense_chosen == @sense_num")
         if len(nodes) == 0:
             continue
-        sample_size = min(elements_per_label, len(nodes) - 1 if len(nodes) > 1 else 1)
+        sample_size = min(labels_per_sense, len(nodes) - 1 if len(nodes) > 1 else 1)
 
-        sample_nodes = nodes.sample(n=sample_size, random_state=myseed)
+        sample_nodes = nodes.sample(n=sample_size, random_state=random_seed)
         for i in range(sample_size):
             node_idx = sample_nodes.iloc[i].name
             labeled_indexes.append(node_idx)
     return np.array(labeled_indexes)
 
 
-def replicator_dynamics(W, strategies, max_iter=100):
+def replicator_dynamics(W: np.ndarray, strategies: np.ndarray, max_it: int = 100) -> np.ndarray:
     """
     Compute Nash equilibria using Replicator Dynamics.
 
     Args:
-        W: The affinity matrix of the game
-        strategies: The strategy space of the game
+        W: The affinity matrix of the game.
+        strategies: The strategy space of the game.
+        max_it: The number of RD iterations to perform.
 
     Returns:
-        The strategy space after the game convergence
+        The strategy space after the game convergence.
     """
     p = strategies.copy()
     n_iter = 0
 
     X = torch.from_numpy(p)
     W = torch.from_numpy(W)
-    while n_iter < max_iter:
+    while n_iter < max_it:
         X = X * torch.matmul(W, X)
         X /= (X.sum(dim=X.dim() - 1).unsqueeze(X.dim() - 1) + 10**-15)
         n_iter += 1
-
     return X.numpy()
 
 
-# One-hot encoded senses
-def gtg(y, weights, labeled_senses_idx, strategies, first_sense=False):
+def gtg(y: pd.DataFrame, weights: np.ndarray, labeled_senses_idx: np.ndarray, strategies: np.ndarray, max_it: int,
+        first_sense: bool = False) -> Tuple[float, float]:
+    """
+    Run GTG on a partially-labelled dataset and compute accuracy.
+    Args:
+        y: data-points ground truth.
+        weights: pair-wise affinity matrix between data-points.
+        labeled_senses_idx: indexes of labels to use.
+        strategies: NxC strategy-space matrix in which each row is a
+            verb and each column is a sense.
+        max_it: the number of RD iterations.
+        first_sense: if True RD are not run and the first sense of
+            each verb is returned.
+
+    Returns:
+        The accuracy of motion verbs and non-motion verbs.
+
+    """
     n_points = len(weights)
 
-    p = strategies.copy()
+    probabilities = strategies.copy()
 
-    plabs = y['one_hot'].iloc[labeled_senses_idx]
+    labelled_probabilities = y['one_hot'].iloc[labeled_senses_idx]
     for i in range(len(labeled_senses_idx)):
-        p[labeled_senses_idx[i], :] = plabs.iloc[i]
+        probabilities[labeled_senses_idx[i], :] = labelled_probabilities.iloc[i]
 
     if first_sense:
-        p_new = p
+        p_new = probabilities
     else:
-        p_new = replicator_dynamics(weights, p)
+        p_new = replicator_dynamics(weights, probabilities, max_it)
 
     unlabeled = np.setdiff1d(np.arange(n_points), labeled_senses_idx)
     n_unlabeled = len(unlabeled)

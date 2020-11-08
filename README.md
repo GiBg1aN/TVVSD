@@ -1,4 +1,4 @@
-# Visual Verb Disambiguation Game (DRAFT)
+# Transductive Visual Verb Sense Disambiguation (DRAFT)
 
 This repository contains the code to run the experiments presented in
 the paper *Transductive Visual Verb Sense Disambiguation* which will be
@@ -38,7 +38,7 @@ The annotations used are the ones from COCO (GOLD).
 ### Parameters
 Optional parameters can be specified:
 ```
-usage: run_experiments.py [-h] [-G | -P] [-m MAX_LABELS] [-a]
+usage: run_experiments.py [-h] [-G | -P] [-m MAX_LABELS] [-i ITERATIONS] [-a]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -47,9 +47,10 @@ optional arguments:
   -m MAX_LABELS, --max_labels MAX_LABELS
                         The maximum number of labeled data-points to use for
                         each sense.
+  -i ITERATIONS, --iterations ITERATIONS
+                        The number of Replicator Dynamics iterations to be
+                        run.
   -a, --all_senses      Ignore input verb, run inference on the senses of all
                         verbs for each data point.
 ```
 
-## Inference on your own dataset
-TODO
